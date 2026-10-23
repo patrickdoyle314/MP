@@ -195,18 +195,24 @@ def load_state() -> dict:
 
 
 def update_state(state: dict, source: str, current: set[str], namus_max_age: int | None,
-                 workers: int):
+                 workers: int) -> dict:
+    """Update listing history; return this run's counts for the run log."""
     cases = state[source]
+    stats = {"listed": len(current), "new": 0, "relisted": 0, "no_longer_listed": 0, "delisted": 0}
     for cid in current:
+        if cid not in cases:
+            stats["new"] += 1
         c = cases.setdefault(cid, {"first_listed": TODAY})
         c["last_listed"] = TODAY
         if c.get("status") == "delisted":  # came back (e.g. re-opened / re-published)
             c.setdefault("history", []).append({"relisted": TODAY, "was": c.pop("delisted")})
+            stats["relisted"] += 1
         c["status"] = "listed"
 
     gone = [cid for cid, c in cases.items() if c.get("status") == "listed" and cid not in current]
+    stats["no_longer_listed"] = len(gone)
     if not gone:
-        return
+        return stats
     print(f"  {source}: {len(gone)} previously listed cases are no longer listed")
 
     def mark(cid):
@@ -221,6 +227,8 @@ def update_state(state: dict, source: str, current: set[str], namus_max_age: int
         c["delisted"] = info
 
     parallel(mark, gone, workers, f"{source} delisting check")
+    stats["delisted"] = sum(1 for cid in gone if cases[cid].get("status") == "delisted")
+    return stats
 
 
 # --------------------------------------------------------------------------- narrative mining
@@ -625,6 +633,7 @@ def main():
     state = load_state()
 
     if not a.offline:
+        run = {"date": TODAY, "source": a.source, "max_age": a.max_age}
         if a.source in ("namus", "all"):
             print(f"NamUs: listing open cases, age at disappearance <= {a.max_age} ...")
             ids = namus_list(a.max_age)
@@ -633,7 +642,7 @@ def main():
                 ids = dict(list(ids.items())[:a.limit])
             parallel(lambda c: namus_fetch(c, ids[c], a.refresh), list(ids), a.workers, "namus details")
             if not a.limit:
-                update_state(state, "namus", set(ids), a.max_age, a.workers)
+                run["namus"] = update_state(state, "namus", set(ids), a.max_age, a.workers)
         if a.source in ("ncmec", "all"):
             print("NCMEC: listing open child posters ...")
             rows = ncmec_list()
@@ -642,11 +651,12 @@ def main():
                 rows = dict(list(rows.items())[:a.limit])
             parallel(lambda k: ncmec_fetch(k, rows[k], a.refresh), list(rows), a.workers, "ncmec details")
             if not a.limit:
-                update_state(state, "ncmec", set(rows), None, a.workers)
+                run["ncmec"] = update_state(state, "ncmec", set(rows), None, a.workers)
         if a.limit:
             build_outputs(state)
             return
-        state["runs"].append({"date": TODAY, "source": a.source, "max_age": a.max_age})
+        state["runs"].append(run)
+        print("  run counts:", {s: run[s] for s in ("namus", "ncmec") if s in run})
         STATE_FILE.write_text(json.dumps(state, indent=1), "utf-8")
 
     build_outputs(state)

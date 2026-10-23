@@ -44,10 +44,13 @@ children-first is listed under *Unreleased* in the changelog.
 
 ```
 collect.py            collect NamUs + NCMEC cases, build timelines (output/)
+scheduled_run.py      one weekly run: collect, refresh derived files, log (data/logs/)
 circumstances.py      classify how, where and doing what (output/circumstances.csv)
 insights.py           insights with Census comparisons (report/insights.json)
 report/               Word report builder, charts, summary JSONs
 paper/                notes and checks for Adam, Sokolowski & Banks (2009)
+MODELING.md           predictive modeling status and ranked candidates
+probes/               quick feasibility checks for model candidates
 exchange/             aggregate exchange with adjacent projects (see below)
 data/, output/        downloaded and generated data (not committed)
 ```
@@ -76,6 +79,28 @@ python collect.py --max-age 21     # change the NamUs age cut-off
 
 Re-runs are incremental. NamUs records are re-downloaded only when their `modifiedDateTime`
 changes. NCMEC records are downloaded once; use `--refresh` to re-download everything.
+
+## Scheduled runs
+
+A Windows scheduled task, **"MP weekly collection"**, runs `scheduled_run.py` every **Sunday at
+10:00 AM**. If the computer is off or asleep then, it runs as soon as it is back on and online. Each run:
+
+1. collects a new snapshot (`collect.py`); cases that dropped off since the last run become `found` events
+2. refreshes `output/circumstances.csv` and the exchange outbox
+3. writes a full log to `data/logs/<date>_<time>.log` and one summary line to `data/logs/runs.csv`
+   (cases listed, new and delisted per source)
+
+`data/state.json` keeps each run's counts under `runs`, the history the survival model needs.
+
+```powershell
+Start-ScheduledTask -TaskName "MP weekly collection"     # run now
+Get-ScheduledTaskInfo -TaskName "MP weekly collection"   # last and next run
+Disable-ScheduledTask -TaskName "MP weekly collection"   # pause
+Set-ScheduledTask -TaskName "MP weekly collection" -Trigger (New-ScheduledTaskTrigger -Weekly -DaysOfWeek Wednesday -At 7pm)  # change time
+Unregister-ScheduledTask -TaskName "MP weekly collection"  # remove
+```
+
+The task runs as the signed-in user (no stored password) and only while that user is signed in.
 
 ## Outputs (`output/`)
 

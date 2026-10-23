@@ -8,6 +8,15 @@ dates are when the change was made.
 ### To do
 - Rebuild `insights.py` and the Word report children-first, with adult figures in their own section.
 
+## [0.5.0] - 2026-10-22
+
+### Added
+- `MODELING.md`: status of predictive modeling and ranked candidates (children only; adults separate).
+- `probes/text_classifier_probe.py`: checks whether a classifier trained on NCMEC case types beats the keyword rules (it scores high only by learning poster wording and dates).
+- `scheduled_run.py` and a weekly Windows scheduled task ("MP weekly collection", Sundays 10:00 AM;
+  catches up after missed runs): collect, refresh derived files, log to `data/logs/`.
+- Per-run counts (listed, new, relisted, no longer listed, delisted) per source in `data/state.json`.
+
 ## [0.4.1] - 2026-10-22
 
 ### Added
