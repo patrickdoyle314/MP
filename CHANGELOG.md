@@ -5,8 +5,34 @@ dates are when the change was made.
 
 ## [Unreleased]
 
-### To do
-- Rebuild `insights.py` and the Word report children-first, with adult figures in their own section.
+Nothing yet.
+
+## [0.6.0] - 2026-10-22
+
+### Added
+- `models/stock_flow_ncic.py`: national stock-and-flow model of active juvenile records from FBI NCIC
+  yearly statistics (2015–2020, 2022–2025), with one-year-ahead backtests; data in
+  `models/ncic_juvenile_by_year.csv`, results in `models/stock_flow_results.json`, chart in the report.
+- `requirements.txt`, including `matplotlib` and `python-docx` for reporting, `scipy` for analysis and models,
+  and `libpysal` for spatial analysis (neighbor weights; brings in `geopandas`, `shapely`, `pandas`).
+
+### Changed
+- Word report rebuilt children-first and retitled *Missing Children in the United States*: Part 1 is children
+  only (compared with Census ages 0–17); Part 2 is young adults (18–25, compared with ages 18–25). New
+  insight on the national model; new source [9] (FBI NCIC yearly statistics).
+- `insights.py`, `report/make_facts.py` and `report/charts.py` compute and draw children and young adults
+  separately (charts end in `_child` / `_adult`), count only cases still open on the latest collection,
+  and take the collection date from `data/state.json`.
+- With children alone, over-representation versus population is Black 2.4x, Hispanic 1.6x, American Indian /
+  Alaska Native 2.0x; for young adults, American Indian / Alaska Native is 4.7x (the pooled 0–25 figures
+  were 2.2x, 1.5x and 2.6x).
+
+### Fixed
+- `exchange/export_exchange.py` now leaves out cases found since an earlier run (open cases only, as the
+  contract says).
+
+### Removed
+- Pooled 0–25 charts (`report/charts/age_sex.png` and six others), replaced by child and adult versions.
 
 ## [0.5.0] - 2026-10-22
 

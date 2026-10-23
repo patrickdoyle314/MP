@@ -80,6 +80,9 @@ def main():
     skipped = collections.Counter()
     for p in csv.DictReader(open(ROOT / "output/persons.csv", encoding="utf-8-sig")):
         # Children and adults never share a count: age_group comes from collect.py
+        if p["status"] == "delisted":  # found since an earlier run: no longer an open case
+            skipped["no longer listed (found)"] += 1
+            continue
         group = p["age_group"]
         if group not in ("child", "adult"):
             skipped["age unknown or straddles 18"] += 1

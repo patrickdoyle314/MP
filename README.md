@@ -36,9 +36,10 @@ Every person and event carries an `age_group`:
 labeled and reported separately as context, never pooled into a child figure. `unknown` records are
 in neither group.
 
-The Word report and `insights.py` were built before this split, so their headline figures cover ages
-0–25 together (the per-age tables already separate 0–11, 12–17 and 18–25). Rebuilding them
-children-first is listed under *Unreleased* in the changelog.
+The Word report follows the same rule: Part 1 is children only, compared with the Census population
+aged 0–17; Part 2 is young adults (18–25), compared with the population aged 18–25. `insights.py`,
+`report/make_facts.py` and `report/charts.py` compute and draw each group separately, and count only
+cases still open on the latest collection date.
 
 ## Layout
 
@@ -50,6 +51,8 @@ insights.py           insights with Census comparisons (report/insights.json)
 report/               Word report builder, charts, summary JSONs
 paper/                notes and checks for Adam, Sokolowski & Banks (2009)
 MODELING.md           predictive modeling status and ranked candidates
+models/               national stock-and-flow model (FBI NCIC), data and results
+requirements.txt      Python packages: SciPy, libpysal, matplotlib and python-docx, among others
 probes/               quick feasibility checks for model candidates
 exchange/             aggregate exchange with adjacent projects (see below)
 data/, output/        downloaded and generated data (not committed)
@@ -71,7 +74,7 @@ python exchange/export_exchange.py --peer ../<peer-project>/exchange/outbox
 ## Run
 
 ```bash
-pip install requests
+pip install -r requirements.txt    # collection, analysis (SciPy), spatial (libpysal), reporting (matplotlib, python-docx)
 python collect.py                  # full run, ~15–30 min the first time
 python collect.py --offline        # rebuild outputs from cached raw data
 python collect.py --max-age 21     # change the NamUs age cut-off
@@ -153,13 +156,22 @@ python collect.py
 python circumstances.py output/persons.csv
 python report/make_facts.py
 python insights.py
+python models/stock_flow_ncic.py   # national model; also draws its chart
 python report/charts.py
 python report/build_report.py
 ```
 
-`insights.py` also reads two Census Bureau population-estimate files in `data/census/`,
+The report is titled *Missing Children in the United States*: children first, young adults in their own
+part. `insights.py` also reads two Census Bureau population-estimate files in `data/census/`,
 downloaded from https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/state/asrh/.
-The report builder needs `python-docx` and the charts need `matplotlib`.
+Charts use `matplotlib` and the report uses `python-docx` (both in `requirements.txt`).
+
+## National model (`models/`)
+
+`models/stock_flow_ncic.py` fits yearly FBI NCIC juvenile figures (entries and records active on
+December 31, 2015–2025; 2021 not online) with a fast group and a slow group, the linear compartment
+form of the predator-prey idea, and backtests it one year ahead. Figures and sources are in
+`models/ncic_juvenile_by_year.csv`; results in `models/stock_flow_results.json`. See `MODELING.md`.
 
 ## Responsible use
 

@@ -23,7 +23,7 @@ left-truncated. The survival model must handle all three.
 | # | Candidate | Predicts | Data it needs | Ready? |
 |---|---|---|---|---|
 | 1 | **Time to resolution** (survival analysis) | How long cases stay open, by age band, sex, how they went missing, state, source | Repeated collection runs (weekly), so closed cases are observed | **After runs.** Needs left-truncation handling (we only see cases still open on day one) and a "long-term open" fraction (cure model), since the resolution rate drops from about 1.1/year to 0.011/year as cases age |
-| 2 | **Stock-and-flow model** (the linear compartment form of the predator-prey idea) | National active juvenile records from new reports and closures | FBI NCIC annual statistics, several years (entries, removals, active records by age); public PDFs | **Feasible now** with downloads. At least three compartments (days, years, decades), not one rate |
+| 2 | **Stock-and-flow model** (the linear compartment form of the predator-prey idea) | National active juvenile records from new reports and closures | FBI NCIC annual statistics, 2015–2025 | **Built** (see below). Yearly totals identify one slow group, not three; it explains structure but doesn't beat “same as last year” |
 | 3 | **New-case counts by month** (Poisson / negative binomial) | Seasonal and trend pattern of new disappearances | New-case dates from repeated runs; the open-case snapshot is biased toward recent and unresolved cases | **After runs** |
 | 4 | **Text classifier** for how a child went missing | Runaway / family abduction / etc. from the case summary | Hand-labeled NamUs summaries | **Not as-is.** See probe below |
 | 5 | True predator-prey coupling (one group drawing others in) | Recruitment between missing children | Links between cases over time | **No.** Nothing in public data measures it |
@@ -48,4 +48,23 @@ label carries information that the poster text doesn't, which is why the keyword
 
 ## Requirements
 
-`pip install scikit-learn scipy` for the probes.
+`pip install -r requirements.txt`.
+
+## Candidate 2 built: national stock-and-flow model (2026-10-22)
+
+`models/stock_flow_ncic.py`, on FBI NCIC juvenile (under 18) figures for 2015–2020 and 2022–2025
+(2021 entries interpolated; report not online).
+
+| Finding | Value |
+|---|---|
+| Average time a juvenile record stays open (active ÷ entries) | 24–31 days a year; highest 2020–2022, lowest 2025 |
+| Fast group | about 99.2% of records; closes in about 13 days on average |
+| Slow group | about 0.8% of records; half-life about 2.9 years |
+| Slow group's share of active records | 49–53% every year |
+| Second slow group | Not identifiable: it collapses onto the first; AICc prefers the simplest model |
+
+**Backtest, one year ahead (mean absolute % error):** same as last year 7.8%; last year's duration × this
+year's entries 8.1%; constant duration 9.8%; one slow group 11.8%. **The model explains structure but
+does not forecast better than simple rules.** Active juvenile records fell 13% (2024) and 16% (2025),
+faster than entries, so something in how records close changed; yearly totals cannot say what.
+Monthly data, or the age of active records, would be needed to go further.

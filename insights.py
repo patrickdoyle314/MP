@@ -15,7 +15,8 @@ import statistics
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-COLLECTED = dt.date(2026, 10, 21)
+# Date of the latest collection run (cases are "open" as of this date)
+COLLECTED = dt.date.fromisoformat(json.loads((ROOT / "data/state.json").read_text("utf-8"))["runs"][-1]["date"])
 RECENT_FROM = 2016  # population comparisons use cases from the last ~10 years
 AGE_MAX = 25
 
@@ -92,15 +93,15 @@ def race_of(key):
 
 # --------------------------------------------------------------------------- census
 
-def census():
-    """Population aged 0-25 (2024 estimate): by state, and nationally by race/ethnicity."""
+def census(lo, hi):
+    """Population aged lo-hi (2024 estimate): by state, and nationally by race/ethnicity."""
     by_state = collections.Counter()
     for r in csv.DictReader(open(ROOT / "data/census/sc-est2024-agesex-civ.csv", encoding="latin-1")):
-        if r["SUMLEV"] == "040" and r["SEX"] == "0" and int(r["AGE"]) <= AGE_MAX:
+        if r["SUMLEV"] == "040" and r["SEX"] == "0" and lo <= int(r["AGE"]) <= hi:
             by_state[r["NAME"]] += int(r["POPEST2024_CIV"])
     race = collections.Counter()
     for r in csv.DictReader(open(ROOT / "data/census/sc-est2024-alldata6.csv", encoding="latin-1")):
-        if r["SEX"] != "0" or int(r["AGE"]) > AGE_MAX:
+        if r["SEX"] != "0" or not lo <= int(r["AGE"]) <= hi:
             continue
         pop = int(r["POPESTIMATE2024"])
         if r["ORIGIN"] == "2":
@@ -113,28 +114,45 @@ def census():
 
 # --------------------------------------------------------------------------- main
 
+GROUPS = {"child": (0, 17), "adult": (18, 25)}  # analyzed apart; never pooled
+
+
 def main():
     P = {p["person_key"]: p for p in load_csv("output/persons.csv")}
     C = {c["person_key"]: c for c in load_csv("output/circumstances.csv")}
-    pop_state, pop_race = census()
-    I = {"collected": COLLECTED.isoformat(), "recent_from": RECENT_FROM}
+    out = {"collected": COLLECTED.isoformat(), "recent_from": RECENT_FROM}
+    for group, (lo, hi) in GROUPS.items():
+        rows = []
+        for k, p in P.items():
+            if p["age_group"] != group or p["status"] == "delisted":  # open cases only
+                continue
+            a, d = age_of(p), date_of(p)
+            rows.append(dict(key=k, p=p, c=C[k], age=a, band=band(a), date=d, sex=p["sex"].lower(),
+                             type=C[k]["how_missing"], text=p["circumstances"]))
+        out[group] = compute(rows, lo, hi, *census(lo, hi))
+    (ROOT / "report").mkdir(exist_ok=True)
+    (ROOT / "report/insights.json").write_text(json.dumps(out, indent=1, default=str), "utf-8")
+    return out
 
-    rows = []
-    for k, p in P.items():
-        a, d = age_of(p), date_of(p)
-        rows.append(dict(key=k, p=p, c=C[k], age=a, band=band(a), date=d, sex=p["sex"].lower(),
-                         type=C[k]["how_missing"], text=p["circumstances"]))
+
+def compute(rows, lo, hi, pop_state, pop_race):
+    """All insights for one age group; population comparisons use the same ages (lo-hi)."""
+    I = {"ages": [lo, hi]}
     recent = [r for r in rows if r["date"] and r["date"].year >= RECENT_FROM]
     I["n_all"], I["n_recent"] = len(rows), len(recent)
+    bands = ("0-11", "12-17") if hi < 18 else ("18-25",)
 
     # 1. Age and sex -----------------------------------------------------------
     ages = collections.Counter((r["age"], r["sex"]) for r in rows if r["age"] is not None)
-    I["age_sex"] = [[a, ages[(a, "female")], ages[(a, "male")]] for a in range(0, AGE_MAX + 1)]
+    I["age_sex"] = [[a, ages[(a, "female")], ages[(a, "male")]] for a in range(lo, hi + 1)]
     teen = [r for r in rows if r["band"] == "12-17"]
-    I["peak_age"] = max(range(AGE_MAX + 1), key=lambda a: ages[(a, "female")] + ages[(a, "male")])
-    I["share_15_17"] = sum(ages[(a, s)] for a in (15, 16, 17) for s in ("female", "male")) / len(rows)
+    I["peak_age"] = max(range(lo, hi + 1), key=lambda a: ages[(a, "female")] + ages[(a, "male")])
+    top3 = sorted(range(lo, hi + 1), key=lambda a: -(ages[(a, "female")] + ages[(a, "male")]))[:3]
+    I["top3_ages"] = sorted(top3)
+    I["top3_ages_share"] = sum(ages[(a, s)] for a in top3 for s in ("female", "male")) / len(rows)
     I["female_share"] = {b: sum(r["sex"] == "female" for r in rows if r["band"] == b) /
-                         max(1, sum(r["band"] == b for r in rows)) for b in ("0-11", "12-17", "18-25")}
+                         max(1, sum(r["band"] == b for r in rows)) for b in bands}
+    I["female_share_all"] = sum(r["sex"] == "female" for r in rows) / len(rows)
     I["female_share_by_type"] = {}
     for t in ("Runaway / left voluntarily", "Outdoors / water (lost, drowning, accident)",
               "Possible foul play / homicide", "Family abduction", "Non-family abduction"):
@@ -159,7 +177,7 @@ def main():
                      r"Rio Grande|unaccompanied|refugee|ORR)\b", re.I)
     hisp = [r for r in recent if race_of(r["key"]) == "Hispanic"]
     I["hispanic_migration_related"] = [sum(bool(mig.search(r["text"])) for r in hisp), len(hisp)]
-    I["pop_0_25"] = pop_total
+    I["pop_group"] = pop_total
 
     # 3. Per-capita by state (recent) ----------------------------------------
     sc = collections.Counter()
@@ -202,7 +220,7 @@ def main():
     for t in ("Runaway / left voluntarily", "Family abduction", "Non-family abduction",
               "Outdoors / water (lost, drowning, accident)", "Possible foul play / homicide", "Not stated"):
         y = [(COLLECTED - r["date"]).days / 365.25 for r in rows if r["type"] == t and r["date"]]
-        I["years_open_by_type"][t] = [statistics.median(y), len(y)]
+        I["years_open_by_type"][t] = [statistics.median(y) if y else None, len(y)]
     I["source_recent_share"] = {}
     for src in ("namus", "ncmec"):
         y = [(COLLECTED - r["date"]).days / 365.25 for r in rows if r["key"].startswith(src) and r["date"]]
@@ -240,15 +258,14 @@ def main():
             b = json.load(open(ROOT / "data/raw/ncmec" / f"{r['key'].split(':', 1)[1]}.json", encoding="utf-8"))["childBean"]
             sib += bool(b.get("otherChildList"))
     I["ncmec_with_companions"] = [sib, sum(r["key"].startswith("ncmec") for r in rows)]
-
-    (ROOT / "report").mkdir(exist_ok=True)
-    (ROOT / "report/insights.json").write_text(json.dumps(I, indent=1, default=str), "utf-8")
     return I
 
 
 if __name__ == "__main__":
-    I = main()
-    s = json.dumps({k: v for k, v in I.items() if k not in ("age_sex", "state_rates")}, indent=0, default=str)
-    print(s[:6000])
-    print("top states:", [(x[0], x[1], round(x[3], 1)) for x in I["state_rates"][:8]])
-    print("bottom states:", [(x[0], x[1], round(x[3], 1)) for x in I["state_rates"][-6:]])
+    out = main()
+    for g in GROUPS:
+        I = out[g]
+        print(f"== {g}: n={I['n_all']} recent={I['n_recent']} peak={I['peak_age']} female={I['female_share_all']:.0%}")
+        print("  race x:", {r[0]: round(r[4], 2) for r in I["race"]})
+        print("  years open by type:", {k: v[0] and round(v[0], 1) for k, v in I["years_open_by_type"].items()})
+        print("  top states:", [(x[0], x[1], round(x[3], 1)) for x in I["state_rates"][:5]])

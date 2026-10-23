@@ -45,14 +45,19 @@ SOURCES = [
      "https://www.missingkids.org/blog/2025/theyre-missing-too-why-runaway-children-need-our-help", ""),
     ("NCMEC. “Non-family Abductions & Attempts.”",
      "https://www.missingkids.org/theissues/nonfamily", f"Accessed {F['collected']}."),
-    ("This project’s analysis of sources [1] and [2] (and [8] for population comparisons): collect.py "
-     "(data collection), circumstances.py (classification), insights.py (insights), output/persons.csv, "
-     "output/events.csv, output/circumstances.csv, report/insights.json.",
-     None, f"Data collected {F['collected']}."),
+    ("This project’s analysis of sources [1] and [2] (and [8], [9]): collect.py (weekly collection), "
+     "circumstances.py (classification), insights.py (insights, children and young adults separately), "
+     "models/stock_flow_ncic.py (national model), output/*.csv, report/insights.json.",
+     None, f"Latest collection {F['collected']}."),
     ("U.S. Census Bureau, Population Estimates Program, Vintage 2024. State population estimates by single "
      "year of age and sex (file SC-EST2024-AGESEX-CIV, civilian population) and by age, sex, race and Hispanic "
      "origin (file SC-EST2024-ALLDATA6), 2024 estimates.",
      "https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/state/asrh/", "Accessed October 22, 2026."),
+    ("FBI Criminal Justice Information Services. NCIC Missing Person and Unidentified Person Statistics, yearly "
+     "editions 2015–2020 and 2022–2025 (2021 not found online). Juvenile entries and active records "
+     "compiled in models/ncic_juvenile_by_year.csv.",
+     "https://www.fbi.gov/file-repository/2025-ncic-missing-person-and-unidentified-person-statistics.pdf/view",
+     "Accessed October 22, 2026."),
 ]
 
 TYPE_LABEL = {
@@ -276,7 +281,7 @@ lb.font.name, lb.font.size = "Arial", Pt(11)
 
 fp = sec.footer.paragraphs[0]
 fp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-style_run(fp.add_run("Missing Children and Young Adults – Circumstances Report  |  Page "), 8, color=GREY)
+style_run(fp.add_run("Missing Children in the United States  |  Page "), 8, color=GREY)
 fld = _el("w:fldSimple", **{"w:instr": "PAGE"})
 fr = OxmlElement("w:r")
 fr.append(_el("w:t"))
@@ -287,166 +292,34 @@ fp._p.append(fld)
 zoom = doc.settings.element.find(qn("w:zoom"))
 if zoom is not None:
     zoom.set(qn("w:percent"), "100")
-doc.core_properties.title = "Missing Children and Young Adults in the United States"
+doc.core_properties.title = "Missing Children in the United States"
 doc.core_properties.author = "Missing persons research project"
 
 # --------------------------------------------------------------------------- content
+# Children (under 18) first; young adults (18-25) in their own part. Never pooled.
 
-n = F["n"]
-B = F["bands"]
-type_count = dict(F["type"])
-nf, notstated = type_count["Non-family abduction"], type_count["Not stated"]
+SF = json.loads((HERE.parent / "models/stock_flow_results.json").read_text("utf-8"))
+FC, FA = F["child"], F["adult"]
+IC, IA = INS["child"], INS["adult"]
+FIG = [0]
+MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December"]
 
 
 def tl(t):
     return TYPE_LABEL.get(t, t)
 
 
-def band_rows(b, key, label=lambda k: k):
-    return [[label(k), fmt(v), pct(v, B[b]["n"])] for k, v in B[b][key]]
+def x(v):
+    return f"{v:.1f}x"
 
 
-# Title block
-p = doc.add_paragraph()
-style_run(p.add_run("Missing Children and Young Adults in the United States"), 20, bold=True, color=NAVY)
-spacing(p, after=4, line=1.0)
-p = doc.add_paragraph()
-style_run(p.add_run("What public case records say about how they went missing, where they were, "
-                    "and what they were doing"), 13, color=GREY)
-spacing(p, after=8, line=1.1)
-p = doc.add_paragraph()
-style_run(p.add_run(f"Based on {fmt(n)} open cases from NamUs and NCMEC, collected {F['collected']}"), 10, color=GREY)
-pbdr = _el("w:pBdr")
-pbdr.append(_el("w:bottom", **{"w:val": "single", "w:sz": 8, "w:space": 6, "w:color": NAVY}))
-p._p.get_or_add_pPr().append(pbdr)
-spacing(p, after=14)
+def p1(v):
+    return f"{100 * v:.1f}%"
 
-# Key findings
-h1("Key findings")
-fam_young = dict(B["0-11"]["type"])["Family abduction"]
-INS_RACE0 = {r[0]: r for r in INS["race"]}
-bullet([("b", "Kidnapping by a stranger or other non-family member is rare. "),
-        f"It appears in {fmt(nf)} of {fmt(n)} open cases ({pct(nf, n)}). National figures agree: NCMEC "
-        "reports that non-family abductions make up about 1% of its cases, and FBI records coded "
-        "“abducted by stranger” were 0.1% in 2023.", ("cite", [7, 6, 3])])
-bullet([("b", "Most missing teenagers left on their own. "),
-        "Over 90% of children reported to NCMEC in 2024 were endangered runaways, and 95.2% of 2023 FBI "
-        "entries that recorded a reason were coded as runaways. Most come home quickly, so they are "
-        "under-represented in the long-term open cases studied here.", ("cite", [5, 3])])
-bullet([("b", "When the record says how a young child went missing, it is usually a parent who took them. "),
-        f"Among children 11 and under, {pct(fam_young, B['0-11']['n'])} of cases describe a parent or "
-        "relative taking the child, usually in a custody dispute and often with the child believed to be "
-        "abroad.", ("cite", [7])])
-bullet([("b", "Home is the most common last known place at every age. "),
-        "After home come parks, water and streets for young children; streets, walking and school for "
-        "teens; and cars, roads, outdoor or water settings, workplaces and nights out for adults aged 18 "
-        "to 25.", ("cite", [7])])
-bullet([("b", "Most records say very little. "),
-        f"{pct(notstated, n)} of cases don’t state how the person went missing, and only "
-        f"{fmt(F['any_detail'])} ({pct(F['any_detail'], n)}) mention any place or activity before they "
-        "disappeared.", ("cite", [7])])
-bullet([("b", "Black, Hispanic and Native American young people are over-represented. "),
-        "Compared with their share of Americans aged 0 to 25, they appear in open cases since 2016 at "
-        f"{INS_RACE0['Black'][4]:.1f}, {INS_RACE0['Hispanic'][4]:.1f} and "
-        f"{INS_RACE0['American Indian / Alaska Native'][4]:.1f} times their population share.", ("cite", [7, 8])])
-bullet([("b", "The cases that stay open are the serious ones. "),
-        f"Open runaway cases are typically {INS['years_open_by_type']['Runaway / left voluntarily'][0]:.0f} "
-        "years old, while open non-family abductions and suspected homicides are typically "
-        f"{INS['years_open_by_type']['Non-family abduction'][0]:.0f} and "
-        f"{INS['years_open_by_type']['Possible foul play / homicide'][0]:.0f} years old.", ("cite", [7])])
 
-# Data
-h1("Where the data comes from")
-para([f"Every case comes from one of two official public databases. All open cases were downloaded on "
-      f"{F['collected']}. A case is included if the person was 25 or younger when they went missing."])
-table(["Source", "What it covers", "Cases used", "Link"], [
-    ["NamUs (U.S. Dept. of Justice)", "Missing people of all ages; filtered to age 25 or under at disappearance",
-     fmt(F["namus_cases"]), [("link", "namus.gov", SOURCES[0][1])]],
-    ["NCMEC (missingkids.org)", "Missing children, mostly under 18",
-     fmt(F["ncmec_cases"] - F["ncmec_unidentified_removed"]), [("link", "missingkids.org", SOURCES[1][1])]],
-    ["Combined", f"{fmt(F['both'])} children listed in both were merged", fmt(n), ""],
-], [2300, 3960, 1300, 1800], numeric=(2,))
-note(f"NCMEC’s search also returned {F['ncmec_unidentified_removed']} posters for unidentified deceased "
-     "children. They were excluded because they are not missing-person cases.", (2, 7))
-table(["Year last seen", "Cases", "Share"], [[k, fmt(v), pct(v, n)] for k, v in F["era"]],
-      [4680, 2340, 2340], numeric=(1, 2))
-note("These are open cases still listed in the databases. Cases that end quickly are removed, so older and "
-     "harder cases make up a larger share here than in all reports.", (7,))
-
-# How they went missing
-h1("How these young people went missing")
-para(["Each case’s written account was checked for words and phrases that point to how the person "
-      "went missing, such as “ran away”, “abducted by her father” or “drowned”. "
-      "Where NCMEC had assigned an official case type, that label was used instead.", ("cite", [7])])
-table(["How they went missing", "Cases", "Share of all cases"],
-      [[tl(k), fmt(v), pct(v, n)] for k, v in F["type"]], [5160, 2000, 2200], numeric=(1, 2))
-note(f"Share is out of all {fmt(n)} open cases.", (7,))
-
-h2("NCMEC’s own case labels")
-para(["NCMEC gives some of its posters an official case type. The labeled cases show the same pattern:",
-      ("cite", [2])])
-table(["NCMEC case type", "Cases"], [[NCMEC_LABEL.get(k, k), fmt(v)] for k, v in F["ncmec_label"]],
-      [6360, 3000], numeric=(1,))
-spacer()
-callout("National context: all reports, not just open cases", [
-    [("b", "FBI, 2023: "),
-     "563,389 missing-person records were entered into the national NCIC system, and 563,644 were removed, "
-     "mostly because the person was located or came home. Where a reason was recorded, 95.2% were runaways, "
-     "0.9% abduction by a non-custodial parent and 0.1% abduction by a stranger. At the end of 2023, 38,276 "
-     "active records (39%) were people under 21.", ("cite", [3])],
-    [("b", "NCMEC, 2024: "),
-     "NCMEC assisted with 29,568 missing-child cases and helped bring 91% of the children home. More than "
-     "27,000 of these cases were endangered runaways.", ("cite", [4, 5])],
-])
-spacer()
-
-# By age
-h1("Where they were and what they were doing, by age")
-para(["The tables below count how often each kind of place or activity is mentioned in the written account "
-      "of the disappearance. A case can mention several, or none. Percentages are out of all cases in that "
-      "age group, including the many that give no details.", ("cite", [7])])
-AGES = [
-    ("0-11", "Children 11 and under",
-     "The biggest identifiable group is children taken by a parent or relative. These records typically name "
-     "the parent, mention a custody or kidnapping warrant, and say they “may have traveled to” "
-     "another state or country. Where a setting is given, it is most often the home, then parks, water and "
-     "streets. The most common activity is playing outside."),
-    ("12-17", "Teens 12 to 17",
-     "The typical record describes a teenager who left home, often at night or after an argument, or who "
-     "left a group home or foster placement. Common settings are home, streets and walking, and school. "
-     "Common activities are leaving home, walking somewhere, and visiting a friend, boyfriend or girlfriend. "
-     "Abduction of any kind is rare in this group."),
-    ("18-25", "Young adults 18 to 25",
-     "Records describe ordinary adult activities: visiting friends or a partner, walking, driving, going out "
-     "at night, working, hiking or swimming. Cars and roads appear far more often than for younger ages. "
-     "This group has the most drownings and outdoor accidents, and the most cases of suspected foul play."),
-]
-for b, title, text in AGES:
-    h2(f"{title} ({fmt(B[b]['n'])} cases)")
-    para([text, ("cite", [7])])
-    table(["How they went missing", "Cases", "Share"], band_rows(b, "type", tl), [5160, 2000, 2200], numeric=(1, 2))
-    spacer()
-    table(["Places mentioned", "Cases", "Share"], band_rows(b, "place"), [5160, 2000, 2200], numeric=(1, 2))
-    spacer()
-    table(["Activities mentioned", "Cases", "Share"], band_rows(b, "act"), [5160, 2000, 2200], numeric=(1, 2))
-    note(f"{fmt(B[b]['any'])} of {fmt(B[b]['n'])} cases in this group ({pct(B[b]['any'], B[b]['n'])}) "
-         "mention any place or activity.", (7,))
-
-# Non-family abductions
-h1("A closer look at non-family abductions")
-NF = F["nf"]
-ages_txt = ", ".join(f"{fmt(v)} aged {k}" for k, v in NF["band"])
-para([f"{fmt(NF['n'])} open cases describe an abduction by someone outside the family. {NF['pre1990']} of "
-      f"them date from before 1990. Most involve young children: {ages_txt}.", ("cite", [7])])
-table(["Places mentioned in these cases", "Cases"], [[k, fmt(v)] for k, v in NF["place"]], [6360, 3000], numeric=(1,))
-spacer()
-para(["NCMEC’s research on abductions and attempts matches this pattern. Attempts happen most often on "
-      "the street while children are playing, walking or riding bikes, and are more common when children "
-      "are going to or from school.", ("cite", [6])])
-
-# Insights
-INS_RACE = {r[0]: r for r in INS["race"]}
-FIG = [0]
+def pf(v):
+    return f"{round(100 * v)}%"
 
 
 def figure(name, caption, cites):
@@ -462,172 +335,27 @@ def figure(name, caption, cites):
     spacing(c, after=12)
 
 
-def x(v):
-    return f"{v:.1f}x"
+def type_table(G, label="Share"):
+    table(["How they went missing", "Cases", label], [[tl(k), fmt(v), pct(v, G["n"])] for k, v in G["type"]],
+          [5160, 2000, 2200], numeric=(1, 2))
 
 
-def p1(v):
-    return f"{100 * v:.1f}%"
+def band_tables(G, b):
+    B = G["bands"][b]
+    for key, head in (("type", "How they went missing"), ("place", "Places mentioned"), ("act", "Activities mentioned")):
+        rows = [[tl(k) if key == "type" else k, fmt(v), pct(v, B["n"])] for k, v in B[key]]
+        table([head, "Cases", "Share"], rows, [5160, 2000, 2200], numeric=(1, 2))
+        spacer()
+    note(f"{fmt(B['any'])} of {fmt(B['n'])} cases in this group ({pct(B['any'], B['n'])}) mention any place or "
+         "activity. Shares are out of all cases in the group.", (7,))
 
 
-def pf(v):
-    return f"{round(100 * v)}%"
-
-
-yo = INS["years_open_by_type"]
-fs = INS["female_share_by_type"]
-fsh = INS["female_share"]
-sea = INS["season"]
-dig = {d[0]: d for d in INS["digital"]}
-src = INS["source_recent_share"]
-rbs = INS["race_by_source"]
-rates = INS["state_rates"]
-split = INS["state_source_split"]
-age_tot = {a: f + m for a, f, m in INS["age_sex"]}
-MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
-          "November", "December"]
-s_all = sea["All cases"]["shares"]
-s_out = sea["Lost, drowned or accident outdoors"]["shares"]
-pk_all, lo_all = max(range(12), key=s_all.__getitem__), min(range(12), key=s_all.__getitem__)
-pk_out = sorted(range(12), key=lambda i: -s_out[i])[:2]
-mig, hisp_n = INS["hispanic_migration_related"]
-outdoor_f, outdoor_n = fs["Outdoors / water (lost, drowning, accident)"]
-peak_more = round(100 * (s_all[pk_all] / s_all[lo_all] - 1))
-dig_recent = pct(dig["2010-2019"][1] + dig["2020-2026"][1], dig["2010-2019"][2] + dig["2020-2026"][2])
-
-h1("Insights")
-para([f"These findings go beyond the category counts above. They combine the {fmt(INS['n_all'])} case records "
-      "with U.S. Census population estimates. Each one says how it was measured and what it cannot show.",
-      ("cite", [7, 8])])
-for t in [
-    [("b", "Age 16 is the peak. "), f"Mid-teens (15 to 17) make up {pf(INS['share_15_17'])} of all open cases."],
-    [("b", "Sex depends on the situation. "), f"Teen cases are {pf(fsh['12-17'])} female, but outdoor and water "
-     f"cases are {pct(outdoor_n - outdoor_f, outdoor_n)} male."],
-    [("b", "Black, Hispanic and Native American young people are over-represented "),
-     f"compared with their share of the population ({x(INS_RACE['Black'][4])}, {x(INS_RACE['Hispanic'][4])} "
-     f"and {x(INS_RACE['American Indian / Alaska Native'][4])})."],
-    [("b", "Runaway cases close fast; abductions and suspected homicides stay open for decades "),
-     f"(median {yo['Runaway / left voluntarily'][0]:.0f} years vs. {yo['Non-family abduction'][0]:.0f} and "
-     f"{yo['Possible foul play / homicide'][0]:.0f} years)."],
-    [("b", "Disappearances rise in late spring and summer. "),
-     f"{MONTHS[pk_all]} has about {peak_more}% more cases than {MONTHS[lo_all]}."],
-    [("b", "Family abductions often cross borders. "),
-     f"{pct(INS['fam_abroad'], INS['fam_n'])} name a foreign country, most often Mexico."],
-    [("b", "Phones and social media now show up in the records "),
-     f"of about {dig_recent} of cases since 2010, up from almost none before 2000."],
-    [("b", "State-by-state rates mostly reflect reporting practices, "),
-     "not where young people are at greater risk."],
-]:
-    bullet(t)
-
-h2("1. The mid-teens are the peak, and girls outnumber boys in the teen years")
-para([f"Age 16 is the most common age at disappearance ({fmt(age_tot[16])} open cases), and ages 15 to 17 "
-      f"together account for {pf(INS['share_15_17'])} of all cases. Among children under 12, boys and girls "
-      f"are about equal ({pf(fsh['0-11'])} female). Among teens, girls are the majority ({pf(fsh['12-17'])} "
-      f"female). From about age 20, young men clearly outnumber young women ({pf(fsh['18-25'])} of 18- to "
-      "25-year-olds are female).", ("cite", [7])])
-figure("age_sex", "Open cases by age at disappearance and sex, all years.", [1, 2, 7])
-
-h2("2. Boys and young men dominate outdoor and water cases")
-para([f"In cases involving drowning, getting lost or an accident outdoors, {pct(outdoor_n - outdoor_f, outdoor_n)} "
-      f"of those missing are male ({fmt(outdoor_n - outdoor_f)} of {fmt(outdoor_n)}). Cases of possible foul "
-      f"play lean female ({pct(*fs['Possible foul play / homicide'])}), as do non-family abductions "
-      f"({pct(*fs['Non-family abduction'])}). Runaways and family abductions are close to evenly split.",
-      ("cite", [7])])
-figure("female_share", "Share of cases who are female, by how they went missing (all years).", [7])
-
-h2("3. Black, Hispanic and Native American young people are over-represented")
-para([f"Among open cases since {INS['recent_from']} where race or ethnicity is recorded "
-      f"({fmt(INS['race_known'])} people), {p1(INS_RACE['Black'][2])} are Black. Black young people are "
-      f"{p1(INS_RACE['Black'][3])} of Americans aged 0 to 25, so their share of cases is "
-      f"{x(INS_RACE['Black'][4])} their share of the population. The ratio is {x(INS_RACE['Hispanic'][4])} for "
-      f"Hispanic young people and {x(INS_RACE['American Indian / Alaska Native'][4])} for American Indian and "
-      f"Alaska Native young people. White ({x(INS_RACE['White'][4])}) and Asian ({x(INS_RACE['Asian'][4])}) "
-      "young people are under-represented.", ("cite", [7, 8])])
-para([f"The pattern appears in both databases separately: Black young people are {pf(rbs['namus']['Black'])} "
-      f"of NamUs cases and {pf(rbs['ncmec']['Black'])} of NCMEC cases. It is not explained by migration: only "
-      f"{fmt(mig)} of {fmt(hisp_n)} Hispanic cases ({pct(mig, hisp_n)}) mention a border crossing, migrants or "
-      "unaccompanied minors. This shows who is in the open-case listings, not who is most likely to go "
-      "missing. Differences in how quickly cases are resolved, reported and publicized could all play a part, "
-      "and this data can't separate them.", ("cite", [7])])
-figure("race", f"Share of open cases since {INS['recent_from']} (known race/ethnicity) compared with share of "
-       "U.S. population aged 0 to 25 (2024 estimate). Hispanic is any race; other groups are non-Hispanic.",
-       [1, 2, 7, 8])
-
-h2("4. Runaway cases close quickly; abductions and suspected homicides stay open for decades")
-para([f"Among cases that are still open, the typical runaway went missing "
-      f"{yo['Runaway / left voluntarily'][0]:.1f} years ago. The typical family abduction has been open "
-      f"{yo['Family abduction'][0]:.0f} years, an outdoor or water case "
-      f"{yo['Outdoors / water (lost, drowning, accident)'][0]:.0f} years, a non-family abduction "
-      f"{yo['Non-family abduction'][0]:.0f} years, and a case of possible foul play "
-      f"{yo['Possible foul play / homicide'][0]:.0f} years. Most runaways are found, so the open runaway cases "
-      "are mostly recent; the cases that stay unsolved are the more serious ones.", ("cite", [7, 4])])
-para([f"The two databases capture different stages. {pf(src['ncmec'][1])} of NCMEC's open posters are less "
-      f"than a year old (median {src['ncmec'][0]:.1f} years), while the median NamUs case is "
-      f"{src['namus'][0]:.0f} years old.", ("cite", [7])])
-figure("years_open", "Median years since last seen for open cases, by how they went missing.", [7])
-
-h2("5. Disappearances rise in late spring and summer")
-para([f"Across all cases, {MONTHS[pk_all]} has the most disappearances ({p1(s_all[pk_all])} of the year) and "
-      f"{MONTHS[lo_all]} the fewest ({p1(s_all[lo_all])}), so the peak month has about {peak_more}% more. "
-      f"Outdoor and water cases peak earlier, in {MONTHS[pk_out[0]]} and {MONTHS[pk_out[1]]}, which fits "
-      "swimming, boating and hiking season.", ("cite", [7])])
-note("Cases from the last 12 months are left out because recent open cases pile up in the current month. "
-     "Dates recorded as January 1 are also left out, since that date is often a placeholder.")
-figure("season", "Share of cases by month of disappearance. The dashed line marks an even spread (8.3%).", [7])
-
-h2("6. When a parent takes a child, it is often across a border")
-para([f"{fmt(INS['fam_abroad'])} of the {fmt(INS['fam_n'])} family abductions "
-      f"({pct(INS['fam_abroad'], INS['fam_n'])}) name a foreign country where the child may have been taken. "
-      f"Mexico is named most often ({fmt(INS['fam_countries'][0][1])} cases), followed by "
-      + ", ".join(f"{c} ({v})" for c, v in INS["fam_countries"][1:4])
-      + ".", ("cite", [7])])
-figure("countries", "Countries named in family-abduction case records (a case can name more than one).",
-       [1, 2, 7])
-
-h2("7. Phones and social media now show up in the records")
-para([f"Before 2000, only {p1(dig['Before 2000'][1] / dig['Before 2000'][2])} of written accounts mention a "
-      f"phone, texts, social media or online activity. Since 2010 it is about {dig_recent}. When these details "
-      "appear, they often place the person somewhere after the last sighting, for example a phone last used "
-      "near a park, or social media posts from another city. Most records still don't mention them, which may "
-      "reflect how "
-      "briefly public summaries are written rather than what investigators know.", ("cite", [7])])
-figure("digital", "Share of case accounts (more than one line long) that mention a phone, texts, social media or "
-       "online activity, by year last seen.", [7])
-
-h2("8. State-by-state rates mostly reflect reporting practices")
-para([f"Since {INS['recent_from']}, the national rate is {INS['national_rate']:.1f} open cases per 100,000 "
-      "people aged 0 to 25, but states range from under 1 to about 20. The highest rates come from states "
-      "that post many cases to one database. Virginia's are almost all NCMEC posters "
-      f"({split['Virginia'].get('ncmec', 0)} of {sum(split['Virginia'].values())}), and Tennessee's are almost "
-      f"all NamUs records ({split['Tennessee'].get('namus', 0)} of {sum(split['Tennessee'].values())}). "
-      "A low rate may simply mean a state enters fewer cases into these public systems, so these figures "
-      "should not be read as risk.", ("cite", [7, 8])])
-show = rates[:8] + rates[-5:]
-table(["State", f"Open cases since {INS['recent_from']}", "Rate per 100,000 aged 0-25", "From NamUs / NCMEC"],
-      [[s, fmt(c), f"{r:.1f}", f"{split.get(s, {}).get('namus', 0)} / {split.get(s, {}).get('ncmec', 0)}"]
-       for s, c, _, r in show],
-      [2700, 2200, 2400, 2060], numeric=(1, 2))
-note("Top 8 and bottom 5 states shown. Rates use the Census Bureau's 2024 civilian population estimate for "
-     "ages 0 to 25.", (7, 8))
-
-h2("9. Smaller patterns")
-ncomp, nnc = INS["ncmec_with_companions"]
-ft = INS["foster_teen"][0]
-fr, frn = INS["foster_teen_runaway"]
-bullet([("b", "Missing together: "), f"{fmt(ncomp)} of {fmt(nnc)} NCMEC children ({pct(ncomp, nnc)}) went "
-        "missing with a sibling or another child.", ("cite", [2, 7])])
-bullet([("b", "Foster care and group homes: "), f"{fmt(ft)} teen records mention foster care, a group home, a "
-        f"shelter or a state placement, including {fmt(fr)} of {fmt(frn)} teen runaway cases ({pct(fr, frn)}). "
-        "This is a minimum, since most records don't say where the teen lived.", ("cite", [7])])
-bullet([("b", "Unaccompanied minors: "), "Some recent records describe teens who crossed the border alone and "
-        "later left the home of a sponsor or relative.", ("cite", [7])])
-
-# Examples
-h1("Example cases")
-para(["Below are short summaries of real case records, one or more per category. Cases are identified by "
-      "their public case number rather than by name. Each number links to the official record.",
-      ("cite", [1, 2])])
+def state_table(I, ages):
+    rates, split = I["state_rates"], I["state_source_split"]
+    show = rates[:8] + rates[-5:]
+    table(["State", f"Open cases since {INS['recent_from']}", f"Per 100,000 aged {ages}", "From NamUs / NCMEC"],
+          [[s, fmt(c), f"{r:.1f}", f"{split.get(s, {}).get('namus', 0)} / {split.get(s, {}).get('ncmec', 0)}"]
+           for s, c, _, r in show], [2700, 2200, 2400, 2060], numeric=(1, 2))
 
 
 def nm(i):
@@ -638,93 +366,373 @@ def nc(pre, i):
     return [("link", f"NCMEC {pre}-{i}", f"https://www.missingkids.org/poster/{pre}/{i}/1")]
 
 
-EX = [
-    (nm(4571), "16, 1979, CA", "Walking back to her grandmother’s house after a church youth meeting. Two men "
-     "later confessed to abducting her.", "Non-family abduction"),
-    (nm(6704), "Infant, 1993, GA", "Taken from his hospital room.", "Non-family abduction"),
-    (nm(8554), "21, 1984, TX", "Disappeared from her workplace in the late afternoon. Last seen talking with "
-     "two men outside.", "Non-family abduction"),
-    (nm(19556), "4, 2005, CA", "Allegedly taken by her mother. A federal flight warrant was issued and she "
-     "is believed to be abroad.", "Family abduction"),
-    (nm(98717), "9, 2020, OR", "Taken from his home between 6 and 8 a.m. May be with non-custodial family.",
-     "Family abduction"),
-    (nm(103596), "16, 2018, UT", "Packed her belongings and left home. Later leads pointed to two other "
-     "states.", "Ran away"),
-    (nm(100826), "14, 2023, IL", "Described as a habitual runaway. Her social media posts later placed her "
-     "on a Chicago train line.", "Ran away"),
-    (nm(95886), "17, 2022, VA", "Ran away while at work.", "Ran away"),
-    (nm(66559), "13, 2004, AK", "Playing in a kayak with another boy. His shoes were later found in the "
-     "overturned kayak; presumed drowned.", "Outdoors / water"),
-    (nm(124303), "25, 1998, CA", "Jumped into a river during a rafting trip and was swept away.",
-     "Outdoors / water"),
-    (nm(9439), "22, 1998, AZ", "Left home around 7 p.m. His car was later found empty in another city.",
-     "Possible foul play"),
-    (nm(8746), "16, 2010, MI", "Went outside to make a phone call and never came back. Two men were later "
-     "charged in her death.", "Possible foul play"),
-    (nc("NCMC", "1107030"), "2, 2008, MI", "Last seen at a gas station around 9 p.m.", "Not stated"),
-    (nm(80827), "17, 2021, TX", "Last seen at her sister’s apartment. Social media activity appeared "
-     "near another city weeks later.", "Not stated"),
-]
-table(["Case", "Age, year, state", "What the record says", "Category"],
-      [[c, a, w, t] for c, a, w, t in EX], [1750, 1500, 4410, 1700])
-note("Summaries paraphrase the official record as of the collection date. Records can change as "
-     "investigations go on.", (1, 2))
+def examples(rows):
+    table(["Case", "Age, year, state", "What the record says", "Category"], [[c, a, w, t] for c, a, w, t in rows],
+          [1750, 1500, 4410, 1700])
+    note("Summaries paraphrase the official record as of the collection date. Records can change as "
+         "investigations go on.", (1, 2))
 
-# Timeline
-h1("Before and after the last sighting")
-para(["Each case was also turned into a timeline. Structured fields give the last date and place seen; the "
-      "written accounts give earlier and later details.", ("cite", [7])])
-T = F["timeline"]
-bt = dict(T["between_types"])
-bullet([("b", "Last date and place seen: "),
-        f"recorded for nearly every case; {fmt(F['coords'])} NamUs cases also have map coordinates.",
-        ("cite", [1, 2])])
-bullet([("b", "Before they went missing: "),
-        f"{fmt(T['before_people'])} people have an earlier event in their record, such as a previous runaway, "
-        f"a move, a trip, or a previous missing report ({fmt(T['prior_history'])} mention a history of "
-        "running away).", ("cite", [7])])
-bullet([("b", "After the last sighting: "),
-        f"{fmt(T['between_people'])} people have later details, such as sightings, phone or social-media "
-        f"activity, “may be traveling to” leads ({fmt(bt['sighting_or_lead'])}), or a car or "
-        f"belongings found ({fmt(bt['evidence'])}).", ("cite", [7])])
-bullet([("b", "When and where found: "),
-        "Neither database publishes this. Both remove a case once the person is located, so outcomes can "
-        "only be detected by collecting the data repeatedly and noting which cases disappear.",
-        ("cite", [1, 2, 3])])
+
+tc, ta = dict(FC["type"]), dict(FA["type"])
+rc, ra = {r[0]: r for r in IC["race"]}, {r[0]: r for r in IA["race"]}
+fam_young = dict(FC["bands"]["0-11"]["type"]).get("Family abduction", 0)
+yo, yoa = IC["years_open_by_type"], IA["years_open_by_type"]
+slow = SF["fits"]["1"]
+slow_c = slow["params"]["compartments"][0]
+slow_shares = list(slow["slow_share_of_active"].values())
+bt = SF["backtest"]
+
+# Title block
+p = doc.add_paragraph()
+style_run(p.add_run("Missing Children in the United States"), 20, bold=True, color=NAVY)
+spacing(p, after=4, line=1.0)
+p = doc.add_paragraph()
+style_run(p.add_run("How they went missing, where they were and what they were doing, from public case records. "
+                    "Young adults (18–25) are reported separately in Part 2."), 13, color=GREY)
+spacing(p, after=8, line=1.1)
+p = doc.add_paragraph()
+style_run(p.add_run(f"Open NamUs and NCMEC cases on {F['collected']}: {fmt(FC['n'])} children and "
+                    f"{fmt(FA['n'])} young adults"), 10, color=GREY)
+pbdr = _el("w:pBdr")
+pbdr.append(_el("w:bottom", **{"w:val": "single", "w:sz": 8, "w:space": 6, "w:color": NAVY}))
+p._p.get_or_add_pPr().append(pbdr)
+spacing(p, after=14)
+
+callout("How to read this report", [
+    [("b", "Children and young adults are never pooled. "),
+     "Every figure in Part 1 uses only children: people under 18 for their whole recorded age range. Young "
+     "adults (18–25) are in Part 2 with their own figures, compared with the population of the same age. "
+     f"{F['unknown_age']} records with no age, or an age range that straddles 18, are in neither part.",
+     ("cite", [7])],
+    [("b", "Open cases only. "),
+     f"Counts are cases still listed on {F['collected']}. Since weekly collection began on {F['first_run']}, "
+     f"{fmt(F['delisted_so_far'])} cases have dropped off the listings (found) and are not counted here.",
+     ("cite", [1, 2, 7])],
+])
+spacer()
+
+# Key findings (children)
+h1("Key findings about children")
+nfc = tc.get("Non-family abduction", 0)
+bullet([("b", "Kidnapping by a stranger or other non-family member is rare. "),
+        f"It appears in {fmt(nfc)} of {fmt(FC['n'])} open child cases ({pct(nfc, FC['n'])}). National figures "
+        "agree: NCMEC reports non-family abductions are about 1% of its cases, and FBI records coded "
+        "“abducted by stranger” were 0.1% in 2023.", ("cite", [7, 6, 3])])
+bullet([("b", "Most missing teenagers left on their own. "),
+        "Over 90% of children reported to NCMEC in 2024 were endangered runaways, and 95.2% of 2023 FBI entries "
+        "that recorded a reason were coded as runaways. Most come home quickly, so few remain among open cases.",
+        ("cite", [5, 3])])
+bullet([("b", "When the record says how a young child went missing, it is usually a parent who took them. "),
+        f"Among children 11 and under, {pct(fam_young, FC['bands']['0-11']['n'])} of cases describe a parent or "
+        "relative taking the child.", ("cite", [7])])
+bullet([("b", "Black, Hispanic and American Indian / Alaska Native children are over-represented. "),
+        f"Compared with their share of Americans aged 0 to 17, they appear in open child cases since "
+        f"{INS['recent_from']} at {x(rc['Black'][4])}, {x(rc['Hispanic'][4])} and "
+        f"{x(rc['American Indian / Alaska Native'][4])} their population share.", ("cite", [7, 8])])
+bullet([("b", "The cases that stay open are the serious ones. "),
+        f"Open child runaway cases are typically {yo['Runaway / left voluntarily'][0]:.0f} years old; open "
+        f"non-family abductions and suspected homicides of children, {yo['Non-family abduction'][0]:.0f} and "
+        f"{yo['Possible foul play / homicide'][0]:.0f} years.", ("cite", [7])])
+bullet([("b", "Nationally, about 1% of juvenile records make up about half of all active ones. "),
+        f"A stock-and-flow model of FBI figures for 2015–2025 finds about {pf(slow_c['share_of_entries'])} of "
+        f"juvenile records clear with a half-life of about {slow_c['half_life_years']:.0f} years, while the rest "
+        "close within weeks.", ("cite", [9, 7])])
+bullet([("b", "Most records say very little. "),
+        f"{pct(tc.get('Not stated', 0), FC['n'])} of child cases don’t say how the child went missing, and "
+        f"{pct(FC['any_detail'], FC['n'])} mention any place or activity.", ("cite", [7])])
+
+# Data
+h1("Where the data comes from")
+para(["Every case comes from one of two official public databases, collected weekly. National context comes "
+      "from the FBI’s yearly NCIC statistics and NCMEC reports; population figures from the Census Bureau.",
+      ("cite", [1, 2, 9, 8])])
+table(["Source", "What it covers", "Link"], [
+    ["NamUs (U.S. Dept. of Justice)", f"Missing people of all ages; filtered to age 25 or under ({fmt(F['namus_cases'])} cases)",
+     [("link", "namus.gov", SOURCES[0][1])]],
+    ["NCMEC (missingkids.org)", "Missing children, mostly under 18", [("link", "missingkids.org", SOURCES[1][1])]],
+], [2600, 4960, 1800])
+spacer()
+table(["Group", "Open cases", "Rule"], [
+    ["Children", fmt(FC["n"]), "Under 18 for the whole recorded age range"],
+    ["Young adults", fmt(FA["n"]), "18–25"],
+    ["Age unknown", fmt(F["unknown_age"]), "No age, or age range straddles 18 (in neither part)"],
+], [2600, 1800, 4960], numeric=(1,))
+note(f"NCMEC’s search also returns {F['ncmec_unidentified_removed']} posters for unidentified deceased children; "
+     "they are excluded because they are not missing-person cases.", (2, 7))
+
+# ===================================================================== PART 1: CHILDREN
+h1("Part 1: Children (under 18)")
+h2("How children went missing")
+para(["Each case’s written account was checked for words that point to how the child went missing, such as "
+      "“ran away”, “abducted by her father” or “drowned”. Where NCMEC assigned an official case type, that "
+      "label was used instead.", ("cite", [7])])
+type_table(FC)
+note(f"Share of all {fmt(FC['n'])} open child cases.", (7,))
+if FC["ncmec_label"]:
+    para(["NCMEC’s own case types for the children it lists show the same pattern:", ("cite", [2])])
+    table(["NCMEC case type", "Cases"], [[NCMEC_LABEL.get(k, k), fmt(v)] for k, v in FC["ncmec_label"]],
+          [6360, 3000], numeric=(1,))
+    spacer()
+callout("National context: all reports, not just open cases", [
+    [("b", "FBI, 2023: "),
+     "563,389 missing-person records were entered into NCIC and 563,644 removed, mostly because the person was "
+     "located or came home. Where a reason was recorded, 95.2% were runaways, 0.9% abduction by a non-custodial "
+     "parent and 0.1% abduction by a stranger.", ("cite", [3])],
+    [("b", "NCMEC, 2024: "),
+     "NCMEC assisted with 29,568 missing-child cases and helped bring 91% of the children home; more than 27,000 "
+     "were endangered runaways.", ("cite", [4, 5])],
+])
+spacer()
+
+for b, title, text in (
+    ("0-11", "Children 11 and under",
+     "The biggest identifiable group is children taken by a parent or relative, often with a custody or "
+     "kidnapping warrant and a note that they “may have traveled to” another state or country. Where a setting "
+     "is given, it is most often the home, then parks, water and streets; the most common activity is playing outside."),
+    ("12-17", "Teens 12 to 17",
+     "The typical record describes a teenager who left home, often at night or after an argument, or who left a "
+     "group home or foster placement. Common settings are home, streets and school. Abduction of any kind is rare."),
+):
+    h2(f"{title} ({fmt(FC['bands'][b]['n'])} cases)")
+    para([text, ("cite", [7])])
+    band_tables(FC, b)
+
+NFc = FC["nf"]
+h2("A closer look at non-family abductions of children")
+para([f"{fmt(NFc['n'])} open child cases describe an abduction by someone outside the family; {NFc['pre1990']} "
+      "date from before 1990.", ("cite", [7])])
+if NFc["place"]:
+    table(["Places mentioned in these cases", "Cases"], [[k, fmt(v)] for k, v in NFc["place"]], [6360, 3000],
+          numeric=(1,))
+    spacer()
+para(["NCMEC’s research on abductions and attempts matches this: attempts happen most often on the street while "
+      "children are playing, walking or riding bikes, and are more common going to or from school.", ("cite", [6])])
+
+# Insights about children
+h1("Insights about children")
+para([f"Each insight uses only the {fmt(IC['n_all'])} open child cases and, for comparisons, the Census "
+      "population aged 0 to 17.", ("cite", [7, 8])])
+s_all, s_out = IC["season"]["All cases"]["shares"], IC["season"]["Lost, drowned or accident outdoors"]["shares"]
+pk, lo = max(range(12), key=s_all.__getitem__), min(range(12), key=s_all.__getitem__)
+fsh, fs = IC["female_share"], IC["female_share_by_type"]
+dig = {d[0]: d for d in IC["digital"]}
+src = IC["source_recent_share"]
+rbs = IC["race_by_source"]
+mig, hisp_n = IC["hispanic_migration_related"]
+split = IC["state_source_split"]
+
+h2("1. The mid-teens are the peak, and girls outnumber boys in the teen years")
+ages_tot = {a: f + m for a, f, m in IC["age_sex"]}
+para([f"Age {IC['peak_age']} is the most common age at disappearance ({fmt(ages_tot[IC['peak_age']])} open cases); "
+      f"ages {IC['top3_ages'][0]} to {IC['top3_ages'][-1]} account for {pf(IC['top3_ages_share'])} of open child cases. "
+      f"Under 12, boys and girls are about equal ({pf(fsh['0-11'])} female); among teens, girls are the majority "
+      f"({pf(fsh['12-17'])} female).", ("cite", [7])])
+figure("age_sex_child", "Open child cases by age at disappearance and sex.", [1, 2, 7])
+
+h2("2. Who goes missing depends on the situation")
+out_f, out_n = fs["Outdoors / water (lost, drowning, accident)"]
+para([f"In outdoor and water cases, {pct(out_n - out_f, out_n)} of the children are boys. Possible foul play "
+      f"leans female ({pct(*fs['Possible foul play / homicide'])}).", ("cite", [7])])
+figure("female_share_child", "Share of child cases who are girls, by how they went missing (categories with 10 or more cases).", [7])
+
+h2("3. Black, Hispanic and American Indian / Alaska Native children are over-represented")
+para([f"Among open child cases since {INS['recent_from']} with race or ethnicity recorded ({fmt(IC['race_known'])}), "
+      f"{p1(rc['Black'][2])} are Black children, who are {p1(rc['Black'][3])} of Americans aged 0 to 17: "
+      f"{x(rc['Black'][4])} their population share. The ratio is {x(rc['Hispanic'][4])} for Hispanic and "
+      f"{x(rc['American Indian / Alaska Native'][4])} for American Indian and Alaska Native children; White "
+      f"({x(rc['White'][4])}) and Asian ({x(rc['Asian'][4])}) children are under-represented.", ("cite", [7, 8])])
+para([f"The pattern holds in each database (Black children: {pf(rbs['namus']['Black'])} of NamUs and "
+      f"{pf(rbs['ncmec']['Black'])} of NCMEC cases) and is not explained by migration: {fmt(mig)} of "
+      f"{fmt(hisp_n)} Hispanic child cases ({pct(mig, hisp_n)}) mention a border crossing, migrants or "
+      "unaccompanied minors. This shows who is in the open-case listings, not who is most likely to go missing; "
+      "differences in how quickly cases are resolved, reported and publicized could all play a part.", ("cite", [7])])
+figure("race_child", f"Share of open child cases since {INS['recent_from']} (known race/ethnicity) and of U.S. "
+       "population aged 0 to 17 (2024). Hispanic is any race; other groups are non-Hispanic.", [1, 2, 7, 8])
+
+h2("4. Runaway cases close quickly; abductions and suspected homicides stay open for decades")
+para([f"Among open child cases, the typical runaway went missing {yo['Runaway / left voluntarily'][0]:.1f} years "
+      f"ago; a family abduction {yo['Family abduction'][0]:.0f} years, an outdoor or water case "
+      f"{yo['Outdoors / water (lost, drowning, accident)'][0]:.0f}, a non-family abduction "
+      f"{yo['Non-family abduction'][0]:.0f} and possible foul play {yo['Possible foul play / homicide'][0]:.0f}. "
+      f"{pf(src['ncmec'][1])} of NCMEC’s open child posters are under a year old; the median NamUs child case is "
+      f"{src['namus'][0]:.0f} years old.", ("cite", [7, 4])])
+figure("years_open_child", "Median years since last seen, open child cases, by how they went missing.", [7])
+
+h2("5. Disappearances rise in late spring and summer")
+para([f"{MONTHS[pk]} has the most child disappearances ({p1(s_all[pk])}) and {MONTHS[lo]} the fewest "
+      f"({p1(s_all[lo])}). Cases from the last 12 months and dates recorded as January 1 are left out.", ("cite", [7])])
+figure("season_child", "Share of child cases by month of disappearance; the dashed line is an even spread (8.3%).", [7])
+
+h2("6. When a parent takes a child, it is often across a border")
+para([f"{fmt(IC['fam_abroad'])} of {fmt(IC['fam_n'])} family abductions ({pct(IC['fam_abroad'], IC['fam_n'])}) "
+      f"name a foreign country. Mexico is named most often ({fmt(IC['fam_countries'][0][1])} cases), followed by "
+      + ", ".join(f"{c} ({v})" for c, v in IC["fam_countries"][1:4]) + ".", ("cite", [7])])
+figure("countries_child", "Countries named in family-abduction records (a case can name more than one).", [1, 2, 7])
+
+h2("7. Phones and social media now show up in the records")
+recent_d = pct(dig["2010-2019"][1] + dig["2020-2026"][1], dig["2010-2019"][2] + dig["2020-2026"][2])
+para([f"Before 2000, {p1(dig['Before 2000'][1] / max(1, dig['Before 2000'][2]))} of child case accounts mention a "
+      f"phone, texts, social media or online activity; since 2010, {recent_d}. When they appear, they often place "
+      "the child somewhere after the last sighting.", ("cite", [7])])
+figure("digital_child", "Share of child case accounts (more than one line) mentioning a phone, texts, social media or "
+       "online activity, by year last seen.", [7])
+
+h2("8. State rates mostly reflect reporting practices")
+para([f"Since {INS['recent_from']}, the national rate is {IC['national_rate']:.1f} open child cases per 100,000 "
+      "children, but states differ widely. The highest rates come from states that post many cases to one "
+      f"database: Virginia’s are mostly NCMEC posters ({split['Virginia'].get('ncmec', 0)} of "
+      f"{sum(split['Virginia'].values())}) and Tennessee’s mostly NamUs records "
+      f"({split['Tennessee'].get('namus', 0)} of {sum(split['Tennessee'].values())}). These are not risk rates.",
+      ("cite", [7, 8])])
+state_table(IC, "0-17")
+note("Top 8 and bottom 5 states.", (7, 8))
+
+h2("9. Nationally, a small slow group makes up half of active juvenile records")
+mdo = SF["mean_days_open"]
+para([f"FBI figures for 2015–2025 (2021 not published online) give the number of juvenile records entered each "
+      f"year and the number still active on December 31. Juvenile records stay open {min(mdo.values()):.0f}–"
+      f"{max(mdo.values()):.0f} days on average. A stock-and-flow model (the linear form of the predator-prey idea) "
+      f"fits a fast group that closes in about {slow['params']['a_days']:.0f} days and a slow group of about "
+      f"{p1(slow_c['share_of_entries'])} of records with a half-life of about {slow_c['half_life_years']:.1f} years. "
+      f"That slow group is {pf(min(slow_shares))}–{pf(max(slow_shares))} of active juvenile records in every year.",
+      ("cite", [9, 7])])
+para([f"The model explains the structure but does not forecast better than simple rules: one year ahead, “same as "
+      f"last year” missed by {bt['persistence']['mape_percent']:.1f}% on average and the model by "
+      f"{bt['k1']['mape_percent']:.1f}%. Active juvenile records fell 13% in 2024 and 16% in 2025, faster than "
+      "entries; something in how records close changed, and the yearly totals cannot say what.", ("cite", [9, 7])])
+figure("ncic_stock_flow", "Active juvenile (under 18) NCIC records on December 31 (dots) and the model’s fast and "
+       "slow groups (bars). *2021 entries interpolated.", [9, 7])
+
+h2("10. Smaller patterns")
+ncomp, nnc = IC["ncmec_with_companions"]
+ft = IC["foster_teen"][0]
+fr, frn = IC["foster_teen_runaway"]
+bullet([("b", "Missing together: "), f"{fmt(ncomp)} of {fmt(nnc)} NCMEC children ({pct(ncomp, nnc)}) went missing "
+        "with a sibling or another child.", ("cite", [2, 7])])
+bullet([("b", "Foster care and group homes: "), f"{fmt(ft)} teen records mention foster care, a group home, a "
+        f"shelter or a state placement, including {fmt(fr)} of {fmt(frn)} teen runaway cases ({pct(fr, frn)}); a "
+        "minimum, since most records don’t say where the teen lived.", ("cite", [7])])
+
+h2("Example cases: children")
+para(["Short summaries of real records, identified by public case number, not name. Each links to the official "
+      "record.", ("cite", [1, 2])])
+examples([
+    (nm(4571), "16, 1979, CA", "Walking back to her grandmother’s house after a church youth meeting. Two men later "
+     "confessed to abducting her.", "Non-family abduction"),
+    (nm(6704), "Infant, 1993, GA", "Taken from his hospital room.", "Non-family abduction"),
+    (nm(19556), "4, 2005, CA", "Allegedly taken by her mother; a federal flight warrant was issued and she is "
+     "believed to be abroad.", "Family abduction"),
+    (nm(98717), "9, 2020, OR", "Taken from his home between 6 and 8 a.m.; may be with non-custodial family.",
+     "Family abduction"),
+    (nm(103596), "16, 2018, UT", "Packed her belongings and left home; later leads pointed to two other states.", "Ran away"),
+    (nm(100826), "14, 2023, IL", "Described as a habitual runaway; social media posts later placed her on a Chicago "
+     "train line.", "Ran away"),
+    (nm(95886), "17, 2022, VA", "Ran away while at work.", "Ran away"),
+    (nm(66559), "13, 2004, AK", "Playing in a kayak with another boy; his shoes were later found in the overturned "
+     "kayak. Presumed drowned.", "Outdoors / water"),
+    (nm(8746), "16, 2010, MI", "Went outside to make a phone call and never came back; two men were later charged "
+     "in her death.", "Possible foul play"),
+    (nc("NCMC", "1107030"), "2, 2008, MI", "Last seen at a gas station around 9 p.m.", "Not stated"),
+    (nm(80827), "17, 2021, TX", "Last seen at her sister’s apartment; social media activity appeared near another "
+     "city weeks later.", "Not stated"),
+])
+
+h2("Before and after the last sighting: children")
+T = FC["timeline"]
+btc = dict(T["between_types"])
+bullet([("b", "Before: "), f"{fmt(T['before_people'])} children have an earlier event in their record "
+        f"({fmt(T['prior_history'])} mention a history of running away).", ("cite", [7])])
+bullet([("b", "After the last sighting: "), f"{fmt(T['between_people'])} children have later details: sightings and "
+        f"“may be traveling to” leads ({fmt(btc.get('sighting_or_lead', 0))}), or a car or belongings found "
+        f"({fmt(btc.get('evidence', 0))}).", ("cite", [7])])
+bullet([("b", "Found: "), f"Neither database publishes outcomes; a case drops off when the child is located. Weekly "
+        f"collection since {F['first_run']} has recorded {fmt(F['delisted_children'])} children found so far.",
+        ("cite", [1, 2, 7])])
+
+# ===================================================================== PART 2: YOUNG ADULTS
+h1("Part 2: Young adults (18–25)")
+para([f"These {fmt(FA['n'])} open cases are kept apart from the children in Part 1 and compared with the "
+      "population aged 18 to 25. They are context for the children’s figures, not part of them.", ("cite", [7, 8])])
+h2("How young adults went missing")
+type_table(FA)
+spacer()
+h2("Places and activities")
+band_tables(FA, "18-25")
+
+fsa, fsta = IA["female_share"], IA["female_share_by_type"]
+sa = IA["season"]["All cases"]["shares"]
+pka, loa = max(range(12), key=sa.__getitem__), min(range(12), key=sa.__getitem__)
+h2("Insights about young adults")
+para([("b", "Mostly men. "), f"{pf(1 - IA['female_share_all'])} of open young-adult cases are men; the peak age is "
+      f"{IA['peak_age']}.", ("cite", [7])])
+figure("age_sex_adult", "Open young-adult cases by age at disappearance and sex.", [1, 2, 7])
+oa_f, oa_n = fsta["Outdoors / water (lost, drowning, accident)"]
+para([("b", "Outdoor, water and foul-play cases are a larger share than among children. "),
+      f"Outdoor and water cases are {pct(ta.get('Outdoors / water (lost, drowning, accident)', 0), FA['n'])} of "
+      f"young-adult cases and {pct(oa_n - oa_f, oa_n)} of them are men; possible foul play is "
+      f"{pct(ta.get('Possible foul play / homicide', 0), FA['n'])}.", ("cite", [7])])
+figure("female_share_adult", "Share of young-adult cases who are women, by how they went missing (10 or more cases).", [7])
+para([("b", "American Indian and Alaska Native young adults are the most over-represented group in this report. "),
+      f"They appear in open cases since {INS['recent_from']} at {x(ra['American Indian / Alaska Native'][4])} "
+      f"their share of Americans aged 18 to 25 (children: {x(rc['American Indian / Alaska Native'][4])}). Black "
+      f"({x(ra['Black'][4])}) and Hispanic ({x(ra['Hispanic'][4])}) young adults are also over-represented.",
+      ("cite", [7, 8])])
+figure("race_adult", f"Share of open young-adult cases since {INS['recent_from']} and of U.S. population aged 18 to 25 "
+       "(2024). Hispanic is any race; other groups are non-Hispanic.", [1, 2, 7, 8])
+para([("b", "Open cases are older. "), "Open young-adult runaway cases are typically "
+      f"{yoa['Runaway / left voluntarily'][0]:.0f} years old (children: {yo['Runaway / left voluntarily'][0]:.1f}); "
+      f"cases with no stated cause, {yoa['Not stated'][0]:.0f} years (children: {yo['Not stated'][0]:.0f}).",
+      ("cite", [7])])
+figure("years_open_adult", "Median years since last seen, open young-adult cases, by how they went missing.", [7])
+para([("b", "Seasonality. "), f"{MONTHS[pka]} has the most young-adult disappearances ({p1(sa[pka])}) and "
+      f"{MONTHS[loa]} the fewest ({p1(sa[loa])}).", ("cite", [7])])
+figure("season_adult", "Share of young-adult cases by month of disappearance.", [7])
+para([("b", "State rates. "), f"The national rate is {IA['national_rate']:.1f} open young-adult cases per 100,000 "
+      "people aged 18 to 25 since 2016; as for children, state differences mostly reflect reporting.", ("cite", [7, 8])])
+state_table(IA, "18-25")
+note("Top 8 and bottom 5 states.", (7, 8))
+
+h2("Example cases: young adults")
+examples([
+    (nm(8554), "21, 1984, TX", "Disappeared from her workplace in the late afternoon; last seen talking with two "
+     "men outside.", "Non-family abduction"),
+    (nm(124303), "25, 1998, CA", "Jumped into a river during a rafting trip and was swept away.", "Outdoors / water"),
+    (nm(9439), "22, 1998, AZ", "Left home around 7 p.m.; his car was later found empty in another city.",
+     "Possible foul play"),
+])
+TA = FA["timeline"]
+para([("b", "Before and after the last sighting. "), f"{fmt(TA['before_people'])} young adults have an earlier event "
+      f"in their record and {fmt(TA['between_people'])} have later details.", ("cite", [7])])
 
 # Limitations
 h1("Limitations")
 for text in [
-    "Categories come from matching keywords in each case’s written account. Samples were checked by hand, "
-    "but some cases will be misclassified, especially in the smaller categories.",
-    f"Most records are short. {pct(notstated, n)} don’t say how the person went missing, so the "
-    "percentages for known categories are minimums, not complete counts.",
-    "Only cases that were still open on the collection date are included. Runaways who return within days "
-    "are under-represented, and long-unsolved cases (abductions, drownings, unexplained disappearances) are "
-    "over-represented compared with all missing-person reports.",
-    "NamUs and NCMEC overlap only partly. Children listed in both were merged only when NCMEC recorded the "
-    "NamUs case number, so some duplicates may remain.",
-    "The national figures are for different years (FBI 2023, NCMEC 2024) and count all reports, not open "
-    "cases. They are included for context, not as a direct comparison.",
-    "Population comparisons set open cases since 2016 against 2024 population estimates. Race categories "
-    "don’t line up exactly: case records rarely record more than one race, so “two or more races” "
-    "is under-counted in the cases (about 1%) compared with the population (about 4%).",
-    "NamUs has a field for whether the person went missing from tribal land, but its answers are unreliable "
-    "(for example, cases in Nashville marked “yes”), so it isn’t used here.",
+    "Children and young adults are analyzed separately; no figure pools them. Three records with no age, or an age "
+    "range that straddles 18, are in neither group.",
+    "Categories come from matching keywords in each case’s written account. Samples were checked by hand, but some "
+    "cases will be misclassified, especially in the smaller categories.",
+    f"Most records are short: {pct(tc.get('Not stated', 0), FC['n'])} of child cases don’t say how the child went "
+    "missing, so the shares for known categories are minimums.",
+    "Only open cases are included. Runaways who return within days are under-represented, and long-unsolved cases "
+    "are over-represented compared with all missing-person reports.",
+    "NamUs and NCMEC overlap only partly; children listed in both were merged only when NCMEC recorded the NamUs "
+    "case number.",
+    "Population comparisons set open cases since 2016 against 2024 estimates of the same ages. Case records rarely "
+    "record more than one race, so “two or more races” is under-counted.",
+    "The national stock-and-flow model uses ten yearly FBI totals; it identifies one slow group but does not "
+    "forecast better than “same as last year”. The FBI counts juveniles as under 18, as reported.",
 ]:
     bullet([text])
 
 # Method
 h1("Method")
-para(["All open cases were downloaded through the public data feeds behind each site’s search pages: "
-      "NamUs cases where the person was 25 or younger when they went missing, and all NCMEC child posters. "
-      "Each case’s written account was split into sentences and checked against keyword lists for how "
-      "the person went missing (e.g. “ran away”, “non-custodial”, “abducted”, "
-      "“drowned”), the place (home, school, street, vehicle, workplace and so on) and the activity "
-      "(walking, leaving home, visiting a friend and so on). NCMEC’s official case type was used where "
-      "available. For the insights, ages and dates come from the structured fields, race and ethnicity "
-      "from each database’s coded fields, and population figures from Census Bureau estimates. The "
-      "scripts and the per-person results are in the project folder.", ("cite", [7, 8])])
+para(["Open cases were downloaded through the public data feeds behind NamUs and NCMEC search pages, weekly since "
+      f"{F['first_run']}. Each person is labeled child (under 18 for the whole recorded age range), young adult "
+      "(18–25) or unknown, and every analysis runs separately for children and young adults. Each case’s written "
+      "account was checked against keyword lists for how the person went missing, the place and the activity; NCMEC’s "
+      "official case type was used where available. Population comparisons use Census Bureau estimates for the same "
+      "ages. The national model fits yearly FBI NCIC juvenile entries and active records with a fast group and a slow "
+      "group, and is backtested one year ahead.", ("cite", [7, 8, 9])])
 
 # Sources
 h1("Sources")

@@ -1,419 +1,516 @@
 {
- "n": 12353,
- "collected": "October 21, 2026",
+ "collected": "October 22, 2026",
+ "runs": 2,
+ "first_run": "2026-10-21",
+ "n_open": 12373,
+ "delisted_so_far": 20,
+ "delisted_children": 20,
  "namus_cases": 9046,
- "ncmec_cases": 3653,
  "ncmec_unidentified_removed": 310,
- "both": 36,
- "any_detail": 5494,
- "coords": 9034,
- "type": [
-  [
-   "Not stated",
-   10032
-  ],
-  [
-   "Runaway / left voluntarily",
-   688
-  ],
-  [
-   "Outdoors / water (lost, drowning, accident)",
-   625
-  ],
-  [
-   "Family abduction",
-   525
-  ],
-  [
-   "Possible foul play / homicide",
-   394
-  ],
-  [
-   "Non-family abduction",
-   89
-  ]
- ],
- "ncmec_label": [
-  [
-   "endangeredRunaway",
-   381
-  ],
-  [
-   "missing",
-   118
-  ],
-  [
-   "endangeredMissing",
-   42
-  ],
-  [
-   "familyAbduct",
-   26
-  ],
-  [
-   "lostInjuredMissing",
-   15
-  ],
-  [
-   "nonFamilyAbduct",
-   6
-  ],
-  [
-   "unknown",
-   2
-  ]
- ],
- "era": [
-  [
-   "Before 1990",
-   2770
-  ],
-  [
-   "1990-2009",
-   3019
-  ],
-  [
-   "2010-2019",
-   2002
-  ],
-  [
-   "2020-2026",
-   4557
-  ]
- ],
- "bands": {
-  "0-11": {
-   "n": 1762,
-   "type": [
-    [
-     "Not stated",
-     1047
-    ],
-    [
-     "Family abduction",
-     488
-    ],
-    [
-     "Outdoors / water (lost, drowning, accident)",
-     92
-    ],
-    [
-     "Possible foul play / homicide",
-     69
-    ],
-    [
-     "Non-family abduction",
-     56
-    ],
-    [
-     "Runaway / left voluntarily",
-     10
-    ]
-   ],
-   "place": [
-    [
-     "Home / family residence",
-     391
-    ],
-    [
-     "Park / outdoors / water",
-     142
-    ],
-    [
-     "Street / walking / bus",
-     114
-    ],
-    [
-     "Vehicle / transit",
-     98
-    ],
-    [
-     "Store / mall / restaurant",
-     69
-    ],
-    [
-     "School / college",
-     67
-    ]
-   ],
-   "act": [
-    [
-     "Playing outside",
-     146
-    ],
-    [
-     "Traveling / moving",
-     77
-    ],
-    [
-     "Walking / on foot",
-     65
-    ],
-    [
-     "Left home (often after argument / at night)",
-     46
-    ],
-    [
-     "Visiting friend / boyfriend / girlfriend",
-     43
-    ],
-    [
-     "Went to / from school",
-     41
-    ]
-   ],
-   "any": 782
-  },
-  "12-17": {
-   "n": 5861,
-   "type": [
-    [
-     "Not stated",
-     4937
-    ],
-    [
-     "Runaway / left voluntarily",
-     636
-    ],
-    [
-     "Outdoors / water (lost, drowning, accident)",
-     146
-    ],
-    [
-     "Possible foul play / homicide",
-     95
-    ],
-    [
-     "Family abduction",
-     37
-    ],
-    [
-     "Non-family abduction",
-     10
-    ]
-   ],
-   "place": [
-    [
-     "Home / family residence",
-     1286
-    ],
-    [
-     "Street / walking / bus",
-     360
-    ],
-    [
-     "School / college",
-     244
-    ],
-    [
-     "Vehicle / transit",
-     215
-    ],
-    [
-     "Park / outdoors / water",
-     215
-    ],
-    [
-     "Foster / group home / shelter / facility",
-     108
-    ]
-   ],
-   "act": [
-    [
-     "Left home (often after argument / at night)",
-     406
-    ],
-    [
-     "Walking / on foot",
-     260
-    ],
-    [
-     "Visiting friend / boyfriend / girlfriend",
-     248
-    ],
-    [
-     "Went to / from school",
-     148
-    ],
-    [
-     "Driving / riding in a vehicle",
-     71
-    ],
-    [
-     "Swimming / hiking / outdoors",
-     69
-    ]
-   ],
-   "any": 2062
-  },
-  "18-25": {
-   "n": 4728,
-   "type": [
-    [
-     "Not stated",
-     4046
-    ],
-    [
-     "Outdoors / water (lost, drowning, accident)",
-     387
-    ],
-    [
-     "Possible foul play / homicide",
-     230
-    ],
-    [
-     "Runaway / left voluntarily",
-     42
-    ],
-    [
-     "Non-family abduction",
-     23
-    ]
-   ],
-   "place": [
-    [
-     "Home / family residence",
-     1135
-    ],
-    [
-     "Vehicle / transit",
-     756
-    ],
-    [
-     "Street / walking / bus",
-     631
-    ],
-    [
-     "Park / outdoors / water",
-     529
-    ],
-    [
-     "Workplace",
-     231
-    ],
-    [
-     "Store / mall / restaurant",
-     221
-    ]
-   ],
-   "act": [
-    [
-     "Visiting friend / boyfriend / girlfriend",
-     384
-    ],
-    [
-     "Walking / on foot",
-     313
-    ],
-    [
-     "Left home (often after argument / at night)",
-     231
-    ],
-    [
-     "Driving / riding in a vehicle",
-     216
-    ],
-    [
-     "Party / night out",
-     179
-    ],
-    [
-     "Swimming / hiking / outdoors",
-     170
-    ]
-   ],
-   "any": 2650
-  }
- },
- "nf": {
-  "n": 89,
-  "place": [
+ "unknown_age": 3,
+ "child": {
+  "n": 7641,
+  "both": 30,
+  "any_detail": 2842,
+  "coords": 4519,
+  "type": [
    [
-    "Home / family residence",
-    36
+    "Not stated",
+    5995
    ],
    [
-    "Street / walking / bus",
-    17
+    "Runaway / left voluntarily",
+    653
    ],
    [
-    "Vehicle / transit",
-    13
+    "Family abduction",
+    525
    ],
    [
-    "School / college",
-    10
+    "Outdoors / water (lost, drowning, accident)",
+    238
    ],
    [
-    "Store / mall / restaurant",
-    9
+    "Possible foul play / homicide",
+    164
    ],
    [
-    "Park / outdoors / water",
-    8
+    "Non-family abduction",
+    66
    ]
   ],
-  "act": [
+  "ncmec_label": [
    [
-    "Walking / on foot",
-    9
+    "endangeredRunaway",
+    388
    ],
    [
-    "Driving / riding in a vehicle",
-    8
+    "missing",
+    109
    ],
    [
-    "Playing outside",
+    "endangeredMissing",
+    31
+   ],
+   [
+    "familyAbduct",
+    26
+   ],
+   [
+    "lostInjuredMissing",
+    15
+   ],
+   [
+    "nonFamilyAbduct",
     6
    ],
    [
-    "Visiting friend / boyfriend / girlfriend",
-    5
-   ],
-   [
-    "Party / night out",
-    3
-   ]
-  ],
-  "band": [
-   [
-    "0-11",
-    56
-   ],
-   [
-    "18-25",
-    23
-   ],
-   [
-    "12-17",
-    10
-   ]
-  ],
-  "pre1990": 40
- },
- "timeline": {
-  "before_people": 261,
-  "between_people": 2274,
-  "between_types": [
-   [
-    "sighting_or_lead",
-    1516
-   ],
-   [
-    "narrative",
-    795
-   ],
-   [
-    "evidence",
-    479
-   ],
-   [
-    "prior_history",
+    "unknown",
     1
    ]
   ],
-  "prior_history": 46,
-  "vehicles": 794,
-  "companions": 276
- }
+  "era": [
+   [
+    "Before 1990",
+    1399
+   ],
+   [
+    "1990-2009",
+    1399
+   ],
+   [
+    "2010-2019",
+    1003
+   ],
+   [
+    "2020-2026",
+    3837
+   ]
+  ],
+  "bands": {
+   "0-11": {
+    "n": 1761,
+    "type": [
+     [
+      "Not stated",
+      1046
+     ],
+     [
+      "Family abduction",
+      488
+     ],
+     [
+      "Outdoors / water (lost, drowning, accident)",
+      92
+     ],
+     [
+      "Possible foul play / homicide",
+      69
+     ],
+     [
+      "Non-family abduction",
+      56
+     ],
+     [
+      "Runaway / left voluntarily",
+      10
+     ]
+    ],
+    "place": [
+     [
+      "Home / family residence",
+      391
+     ],
+     [
+      "Park / outdoors / water",
+      142
+     ],
+     [
+      "Street / walking / bus",
+      114
+     ],
+     [
+      "Vehicle / transit",
+      98
+     ],
+     [
+      "Store / mall / restaurant",
+      69
+     ],
+     [
+      "School / college",
+      67
+     ]
+    ],
+    "act": [
+     [
+      "Playing outside",
+      146
+     ],
+     [
+      "Traveling / moving",
+      77
+     ],
+     [
+      "Walking / on foot",
+      65
+     ],
+     [
+      "Left home (often after argument / at night)",
+      46
+     ],
+     [
+      "Visiting friend / boyfriend / girlfriend",
+      43
+     ],
+     [
+      "Went to / from school",
+      41
+     ]
+    ],
+    "any": 782
+   },
+   "12-17": {
+    "n": 5880,
+    "type": [
+     [
+      "Not stated",
+      4949
+     ],
+     [
+      "Runaway / left voluntarily",
+      643
+     ],
+     [
+      "Outdoors / water (lost, drowning, accident)",
+      146
+     ],
+     [
+      "Possible foul play / homicide",
+      95
+     ],
+     [
+      "Family abduction",
+      37
+     ],
+     [
+      "Non-family abduction",
+      10
+     ]
+    ],
+    "place": [
+     [
+      "Home / family residence",
+      1285
+     ],
+     [
+      "Street / walking / bus",
+      360
+     ],
+     [
+      "School / college",
+      244
+     ],
+     [
+      "Park / outdoors / water",
+      215
+     ],
+     [
+      "Vehicle / transit",
+      214
+     ],
+     [
+      "Foster / group home / shelter / facility",
+      108
+     ]
+    ],
+    "act": [
+     [
+      "Left home (often after argument / at night)",
+      406
+     ],
+     [
+      "Walking / on foot",
+      260
+     ],
+     [
+      "Visiting friend / boyfriend / girlfriend",
+      248
+     ],
+     [
+      "Went to / from school",
+      148
+     ],
+     [
+      "Driving / riding in a vehicle",
+      71
+     ],
+     [
+      "Swimming / hiking / outdoors",
+      69
+     ]
+    ],
+    "any": 2060
+   }
+  },
+  "nf": {
+   "n": 66,
+   "place": [
+    [
+     "Home / family residence",
+     26
+    ],
+    [
+     "Street / walking / bus",
+     11
+    ],
+    [
+     "Park / outdoors / water",
+     7
+    ],
+    [
+     "Vehicle / transit",
+     6
+    ],
+    [
+     "School / college",
+     6
+    ],
+    [
+     "Store / mall / restaurant",
+     5
+    ]
+   ],
+   "band": [
+    [
+     "0-11",
+     56
+    ],
+    [
+     "12-17",
+     10
+    ]
+   ],
+   "pre1990": 36
+  },
+  "timeline": {
+   "before_people": 108,
+   "between_people": 1433,
+   "between_types": [
+    [
+     "sighting_or_lead",
+     1260
+    ],
+    [
+     "narrative",
+     409
+    ],
+    [
+     "evidence",
+     89
+    ],
+    [
+     "prior_history",
+     1
+    ]
+   ],
+   "prior_history": 27
+  }
+ },
+ "adult": {
+  "n": 4729,
+  "both": 6,
+  "any_detail": 2650,
+  "coords": 4514,
+  "type": [
+   [
+    "Not stated",
+    4047
+   ],
+   [
+    "Outdoors / water (lost, drowning, accident)",
+    387
+   ],
+   [
+    "Possible foul play / homicide",
+    230
+   ],
+   [
+    "Runaway / left voluntarily",
+    42
+   ],
+   [
+    "Non-family abduction",
+    23
+   ]
+  ],
+  "ncmec_label": [
+   [
+    "endangeredMissing",
+    11
+   ],
+   [
+    "missing",
+    8
+   ],
+   [
+    "unknown",
+    1
+   ]
+  ],
+  "era": [
+   [
+    "Before 1990",
+    1371
+   ],
+   [
+    "1990-2009",
+    1620
+   ],
+   [
+    "2010-2019",
+    999
+   ],
+   [
+    "2020-2026",
+    739
+   ]
+  ],
+  "bands": {
+   "18-25": {
+    "n": 4729,
+    "type": [
+     [
+      "Not stated",
+      4047
+     ],
+     [
+      "Outdoors / water (lost, drowning, accident)",
+      387
+     ],
+     [
+      "Possible foul play / homicide",
+      230
+     ],
+     [
+      "Runaway / left voluntarily",
+      42
+     ],
+     [
+      "Non-family abduction",
+      23
+     ]
+    ],
+    "place": [
+     [
+      "Home / family residence",
+      1135
+     ],
+     [
+      "Vehicle / transit",
+      756
+     ],
+     [
+      "Street / walking / bus",
+      631
+     ],
+     [
+      "Park / outdoors / water",
+      529
+     ],
+     [
+      "Workplace",
+      231
+     ],
+     [
+      "Store / mall / restaurant",
+      221
+     ]
+    ],
+    "act": [
+     [
+      "Visiting friend / boyfriend / girlfriend",
+      384
+     ],
+     [
+      "Walking / on foot",
+      313
+     ],
+     [
+      "Left home (often after argument / at night)",
+      231
+     ],
+     [
+      "Driving / riding in a vehicle",
+      216
+     ],
+     [
+      "Party / night out",
+      179
+     ],
+     [
+      "Swimming / hiking / outdoors",
+      170
+     ]
+    ],
+    "any": 2650
+   }
+  },
+  "nf": {
+   "n": 23,
+   "place": [
+    [
+     "Home / family residence",
+     10
+    ],
+    [
+     "Vehicle / transit",
+     7
+    ],
+    [
+     "Street / walking / bus",
+     6
+    ],
+    [
+     "Store / mall / restaurant",
+     4
+    ],
+    [
+     "School / college",
+     4
+    ],
+    [
+     "Workplace",
+     3
+    ]
+   ],
+   "band": [
+    [
+     "18-25",
+     23
+    ]
+   ],
+   "pre1990": 4
+  },
+  "timeline": {
+   "before_people": 153,
+   "between_people": 841,
+   "between_types": [
+    [
+     "evidence",
+     390
+    ],
+    [
+     "narrative",
+     386
+    ],
+    [
+     "sighting_or_lead",
+     256
+    ]
+   ],
+   "prior_history": 19
+  }
+ },
+ "ncmec_cases": 3693
 }
