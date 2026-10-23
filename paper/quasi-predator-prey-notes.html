@@ -1,0 +1,376 @@
+<title>Quasi-Predator-Prey Notebook</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=Literata:ital,opsz,wght@0,7..72,400;0,7..72,600;1,7..72,400&display=swap">
+<script>
+  window.MathJax = {
+    tex: { inlineMath: [["$", "$"], ["\\(", "\\)"]], displayMath: [["$$", "$$"]], tags: "none" },
+    svg: { fontCache: "global" },
+    options: { skipHtmlTags: ["script", "noscript", "style", "textarea", "pre", "code"] }
+  };
+</script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mathjax/3.2.2/es5/tex-svg.min.js" defer></script>
+<style>
+  /* Layout: one reading column (~68ch) with full-width tables and figures; margin labels collapse on phones. */
+  :root {
+    --paper: #fbfcfd;
+    --ink: #1b2430;
+    --ink-2: #4a5666;
+    --rule: #d7dde5;
+    --accent: #1f6f8b;
+    --accent-soft: #e4f0f4;
+    --bad: #a3392c;
+    --bad-soft: #f8e9e6;
+    --good: #2f6b3a;
+    --good-soft: #e7f2e8;
+    --font-body: "Literata", "Georgia", "Times New Roman", serif;
+    --font-head: "IBM Plex Sans Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+    --font-mono: "IBM Plex Mono", "SFMono-Regular", Consolas, "Courier New", monospace;
+    --chart-a: #2a78d6;
+    --chart-b: #eb6834;
+    --grid: #e6e9ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #12171d; --ink: #e6ebf1; --ink-2: #a9b4c2; --rule: #2c3540; --accent: #5fb3d0;
+      --accent-soft: #1a2c35; --bad: #e98b7c; --bad-soft: #3a211d; --good: #8cc79a; --good-soft: #1c2f21;
+      --chart-a: #3987e5; --chart-b: #d95926; --grid: #26303a; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #12171d; --ink: #e6ebf1; --ink-2: #a9b4c2; --rule: #2c3540; --accent: #5fb3d0;
+    --accent-soft: #1a2c35; --bad: #e98b7c; --bad-soft: #3a211d; --good: #8cc79a; --good-soft: #1c2f21;
+    --chart-a: #3987e5; --chart-b: #d95926; --grid: #26303a; color-scheme: dark;
+  }
+  body {
+    background: var(--paper); color: var(--ink); font-family: var(--font-body);
+    font-size: 17px; line-height: 1.62;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    padding-block: 32px 64px;
+  }
+  main { max-width: 46rem; margin: 0 auto; display: grid; gap: 0; }
+  h1, h2, h3 { font-family: var(--font-head); text-wrap: balance; line-height: 1.15; color: var(--ink); }
+  h1 { font-size: 2.3rem; font-weight: 700; margin: 0 0 .4rem; letter-spacing: -.01em; }
+  h2 { font-size: 1.45rem; font-weight: 600; margin: 2.6rem 0 .6rem; padding-top: 1.2rem; border-top: 1px solid var(--rule); }
+  h3 { font-size: 1.1rem; font-weight: 600; margin: 1.6rem 0 .4rem; }
+  p { margin: .7rem 0; }
+  a { color: var(--accent); text-underline-offset: 2px; }
+  a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .eyebrow { font-family: var(--font-head); text-transform: uppercase; letter-spacing: .09em; font-size: .78rem; color: var(--accent); font-weight: 600; }
+  .cite { font-family: var(--font-head); font-size: .98rem; color: var(--ink-2); margin: .2rem 0 1.2rem; }
+  .lede { font-size: 1.12rem; }
+  .eq { overflow-x: auto; overflow-y: hidden; margin: .9rem 0; padding: .2rem 0; }
+  .num { font-family: var(--font-mono); font-size: .9em; font-variant-numeric: tabular-nums; }
+  .tag { font-family: var(--font-mono); font-size: .8rem; color: var(--ink-2); }
+  .box { border-left: 3px solid var(--accent); background: var(--accent-soft); padding: .8rem 1rem; margin: 1.2rem 0; border-radius: 0 4px 4px 0; }
+  .box.bad { border-color: var(--bad); background: var(--bad-soft); }
+  .box > :first-child { margin-top: 0; } .box > :last-child { margin-bottom: 0; }
+  .box-title { font-family: var(--font-head); font-weight: 600; font-size: .95rem; letter-spacing: .02em; display: block; margin-bottom: .2rem; }
+  .table-wrap { overflow-x: auto; margin: 1rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .93rem; line-height: 1.45; }
+  th, td { text-align: left; vertical-align: top; padding: .5rem .6rem; border-bottom: 1px solid var(--rule); }
+  th { font-family: var(--font-head); font-weight: 600; font-size: .85rem; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-2); }
+  td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .verdict { font-family: var(--font-head); font-weight: 600; font-size: .82rem; letter-spacing: .04em; text-transform: uppercase; padding: .1rem .45rem; border-radius: 3px; white-space: nowrap; }
+  .verdict.ok { color: var(--good); background: var(--good-soft); }
+  .verdict.no { color: var(--bad); background: var(--bad-soft); }
+  .verdict.minor { color: var(--ink-2); background: var(--grid); }
+  figure { margin: 1.4rem 0; }
+  figcaption { font-family: var(--font-head); font-size: .9rem; color: var(--ink-2); margin-top: .4rem; }
+  .chart { width: 100%; height: auto; display: block; }
+  .chart text { fill: var(--ink-2); font-family: var(--font-mono); font-size: 11px; }
+  .chart .lab { fill: var(--ink); }
+  .legend { display: flex; flex-wrap: wrap; gap: .4rem 1.2rem; font-family: var(--font-head); font-size: .88rem; color: var(--ink); margin-top: .3rem; }
+  .legend span::before { content: ""; display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: .4rem; background: var(--sw); border-radius: 2px; }
+  ol, ul { padding-left: 1.3rem; } li { margin: .35rem 0; }
+  .toc { font-family: var(--font-head); font-size: .95rem; columns: 2 14rem; gap: 1.5rem; padding-left: 1.2rem; margin: .4rem 0 0; }
+  .toc li { margin: .15rem 0; break-inside: avoid; }
+  pre.mermaid { background: transparent; text-align: center; overflow-x: auto; }
+  footer { margin-top: 3rem; font-family: var(--font-head); font-size: .9rem; color: var(--ink-2); border-top: 1px solid var(--rule); padding-top: 1rem; }
+  @media (max-width: 520px) { body { font-size: 16px; } h1 { font-size: 1.8rem; } }
+  @media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">Paper notes</div>
+    <h1>A two-population insurgency in Colombia: quasi-predator-prey models</h1>
+    <p class="cite">John A. Adam, John A. Sokolowski, Catherine M. Banks. <i>Mathematical and Computer Modelling</i> 49 (2009) 1115–1126.
+      <a href="https://doi.org/10.1016/j.mcm.2008.03.017">doi:10.1016/j.mcm.2008.03.017</a> ·
+      <a href="https://digitalcommons.odu.edu/mathstat_fac_pubs/57">open copy (ODU Digital Commons)</a></p>
+    <p class="lede">The paper models the number of insurgents in Colombia, 1993–2006, as one half of a <em>linear</em> two-population system borrowed from ecology. A large “susceptible” population $S$ feeds a small insurgent population $I$, and government policy enters as forcing terms. The authors fit only two data points and one visual check. The model that survives the fitting is two exponentials joined at 2003, the year after President Uribe was elected: growth before, decay after. Hence the subtitle, “a trend towards simplicity.”</p>
+    <p>Below I work through every equation, re-run the numbers, and flag what doesn't hold up. Then I sketch what the model would need before it could say anything about missing children and young adults. That last part is speculative: I don't assume it applies.</p>
+    <ol class="toc">
+      <li><a href="#setup">The two models</a></li>
+      <li><a href="#reduce">One equation for I</a></li>
+      <li><a href="#unforced">Unforced solutions</a></li>
+      <li><a href="#fit">Fitting Colombia</a></li>
+      <li><a href="#piecewise">The piecewise model</a></li>
+      <li><a href="#bounds">Approximate bounds</a></li>
+      <li><a href="#decoupled">The decoupled system</a></li>
+      <li><a href="#appendix">Appendix: closed forms</a></li>
+      <li><a href="#audit">What checks out</a></li>
+      <li><a href="#transfer">Applying it to missing persons</a></li>
+    </ol>
+  </header>
+
+  <section id="setup">
+    <h2>1. The two models</h2>
+    <p>$S(t)$ is the susceptible (general) population, the “prey.” $I(t)$ is the insurgent population, the “predator.” Time $t$ is in years from 1993. Both models are <em>linear</em>, unlike classical Lotka–Volterra, which has an $SI$ interaction term. That is why the authors call them quasi-predator-prey.</p>
+    <h3>Model 1: additive forcing (“constant harvesting”)</h3>
+    <div class="eq">$$\frac{dS}{dt} = aS - bI + f_1(t), \qquad \frac{dI}{dt} = -cI + dS - f_2(t)$$</div>
+    <div class="eq">$$\frac{d}{dt}\begin{pmatrix}S\\ I\end{pmatrix} = \underbrace{\begin{pmatrix}a & -b\\ d & -c\end{pmatrix}}_{\mathbf A}\begin{pmatrix}S\\ I\end{pmatrix} + \begin{pmatrix}f_1\\ -f_2\end{pmatrix}$$</div>
+    <ul>
+      <li>$a$: per-capita growth of the population (births − deaths + migration).</li>
+      <li>$b$: loss of $S$ caused per insurgent.</li>
+      <li>$d$: recruitment of insurgents from the population.</li>
+      <li>$c$: natural decay of insurgents (positive at first; its sign is flipped later).</li>
+      <li>$f_1 \ge 0$: policy that supports the population.</li>
+      <li>$f_2 \ge 0$: policy that removes insurgents at a fixed rate, independent of how many there are.</li>
+    </ul>
+    <h3>Model 2: proportional forcing (“proportional harvesting”)</h3>
+    <div class="eq">$$\frac{dS}{dt} = aS - bI + f_1(t)\,S, \qquad \frac{dI}{dt} = -cI + dS - f_2(t)\,I$$</div>
+    <p>Here policy removes a <em>fraction</em> of insurgents per unit time, so the system stays homogeneous with a time-varying matrix: $\dot X = \mathbf A_2(t) X$, where $\mathbf A_2 = \begin{pmatrix}a+f_1 & -b\\ d & -c-f_2\end{pmatrix}$. With $f_1 = f_2 = 0$, Models 1 and 2 coincide.</p>
+    <h3>Policy shapes</h3>
+    <p>The authors model a policy change as a step at time $T$, or as an effort that ramps up and saturates:</p>
+    <div class="eq">$$f_2(t) = F_{21}\,[1 - H(t-T)] + F_{22}\,H(t-T) \qquad\text{or}\qquad f_2(t) = D\,(1 - e^{-wt}).$$</div>
+    <p>$H$ is the Heaviside step function. In the ramp, $D$ is the eventual policy strength and $1/w$ is how long it takes to build up.</p>
+  </section>
+
+  <section id="reduce">
+    <h2>2. Reducing to one equation for I</h2>
+    <p>Eliminating $S$ from Model 1 gives a second-order linear equation driven by the policy terms:</p>
+    <div class="eq">$$I'' - (\operatorname{tr}\mathbf A)\, I' + (\det \mathbf A)\, I = a f_2 + d f_1 - f_2' \equiv g_1(t),$$</div>
+    <div class="eq">$$\operatorname{tr}\mathbf A = a - c \equiv \beta, \qquad \det\mathbf A = bd - ac \equiv \gamma.$$</div>
+    <p>The $-f_2'$ term matters. If policy changes as a step, its derivative is a Dirac delta, $f_2' = (F_{22} - F_{21})\,\delta(t - T)$. So a sudden policy change gives the insurgent count's <em>slope</em> an instant kick, while the count itself stays continuous. In practice the authors avoid deltas: they solve the unforced system on each side of $T$ and match the pieces at $T$.</p>
+  </section>
+
+  <section id="unforced">
+    <h2>3. Unforced solutions</h2>
+    <p>With no forcing, $I'' - \beta I' + \gamma I = 0$. The characteristic roots are $r = \tfrac{\beta}{2} \pm \sqrt{\beta^2/4 - \gamma}$. Define the discriminant-like quantity</p>
+    <div class="eq">$$\lambda = \gamma - \frac{\beta^2}{4}.$$</div>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Case</th><th>Solution, with $I(0)=I_0,\ I'(0)=I_0'$</th><th>Behavior</th></tr></thead>
+      <tbody>
+        <tr><td>$\lambda > 0$</td><td>$I = e^{\beta t/2}\big(A\cos\sqrt{\lambda}\,t + B\sin\sqrt{\lambda}\,t\big)$, $A = I_0$, $B = \lambda^{-1/2}\big(I_0' - \tfrac{\beta}{2} I_0\big)$</td><td>Oscillation inside exponential growth or decay</td></tr>
+        <tr><td>$\lambda < 0$</td><td>$I = e^{\beta t/2}\big(A\cosh\sqrt{|\lambda|}\,t + B\sinh\sqrt{|\lambda|}\,t\big)$, with $|\lambda|^{-1/2}$ in $B$</td><td>Sum of two real exponentials</td></tr>
+        <tr><td>$\lambda = 0$</td><td>$I = e^{\beta t/2}(A + Bt)$, $B = I_0' - \tfrac{\beta}{2}I_0$</td><td>Repeated root</td></tr>
+      </tbody>
+    </table></div>
+  </section>
+
+  <section id="fit">
+    <h2>4. Fitting Colombia, 1993–2003</h2>
+    <p>The data is a piecewise-linear chart of estimated insurgent numbers from the Center for Army Analysis Counterinsurgency Database: about 4,000 in 1993, rising to 38,100 in 2003, then falling. The fit uses $I(0) = 4000$, $I(10) = 38{,}100$, a slope read off the chart, and a visual check against about 12,500 in 1997:</p>
+    <div class="eq">$$I(t) = e^{0.287t}\,\big[\,4000\cos(0.153t) + 2000\sin(0.153t)\,\big].$$</div>
+    <p>I re-ran it. It gives $I(10) = $ <span class="num">38,122</span> and $I(4) = $ <span class="num">13,941</span>, and the implied starting slope is $I_0' \approx$ <span class="num">1,454</span> per year. Matching to the case $\lambda > 0$:</p>
+    <div class="eq">$$\tfrac{\beta}{2} = \tfrac{a-c}{2} \approx 0.287,\qquad \sqrt\lambda \approx 0.153 \;\Rightarrow\; \gamma = bd - ac = \lambda + \tfrac{\beta^2}{4} \approx 0.106.$$</div>
+    <div class="box">
+      <span class="box-title">The identifiability problem</span>
+      <p>A single time series of $I$ fixes only two combinations, $\beta$ and $\gamma$, of four unknowns $\{a, b, c, d\}$. The authors say so. Worse, the oscillation period is $2\pi/0.153 \approx 41$ years while the e-folding time is $1/0.287 \approx 3.5$ years, so over 10 years the oscillation is barely visible. The data can't really tell the oscillating model from a plain exponential.</p>
+    </div>
+  </section>
+
+  <section id="piecewise">
+    <h2>5. The piecewise model: growth, then decay after 2003</h2>
+    <p>Because $I$ grows, the authors flip the sign of the insurgents' own term before 2003, so insurgents now grow on their own. They then switch to new parameters (marked with tildes) after $T = 10$:</p>
+    <div class="eq">$$0 \le t \le 10:\quad \dot S = aS - bI,\quad \dot I = +cI + dS \qquad(\beta = a + c,\ \gamma = bd + ac)$$</div>
+    <div class="eq">$$t > 10:\quad \dot S = \tilde aS - \tilde bI,\quad \dot I = -\tilde cI + \tilde dS \qquad(\tilde\beta = \tilde a - \tilde c,\ \tilde\gamma = \tilde b\tilde d - \tilde a\tilde c)$$</div>
+    <p>Population growth is taken from CIA Factbook rates: $a = 0.019$ before 2003 and $\tilde a = 0.014$ after. Since the oscillation is negligible, the fit becomes two pure exponentials:</p>
+    <div class="eq">$$I(t) = 4000\,e^{0.225t}\ \ (0\le t\le 10), \qquad I(t) = 38{,}100\,e^{-0.075(t-10)}\ \ (t \ge 10).$$</div>
+    <p>Check: $4000\,e^{2.25} = $ <span class="num">37,951</span>. The authors' own answer to “why not just use exponentials?” is that in general $I$ won't be independent of $S$. The coupling is there to be switched on when data supports it.</p>
+  </section>
+
+  <section id="bounds">
+    <h2>6. Approximate bounds</h2>
+    <p>Taking the oscillation to be negligible means $\lambda \approx 0$, i.e. $\beta^2 \approx 4\gamma$ in each era. Substituting:</p>
+    <div class="eq">$$(a+c)^2 \approx 4(bd + ac) \iff |a - c| \approx 2\sqrt{bd}, \qquad (\tilde a - \tilde c)^2 \approx 4(\tilde b\tilde d - \tilde a\tilde c) \iff \tilde a + \tilde c \approx 2\sqrt{\tilde b \tilde d}.$$</div>
+    <p>From the exponents, $\beta/2 = (a + c)/2 = 0.225$ and $\tilde\beta/2 = (\tilde a - \tilde c)/2 = -0.075$, so $c = 0.431$ and $\tilde c = 0.164$. Requiring $\tilde c < c$ gives a relation between the coupling strengths before and after the policy change:</p>
+    <div class="eq">$$\sqrt{\tilde b\tilde d} \;\lesssim\; \sqrt{bd} + \frac{a + \tilde a}{2}.$$</div>
+    <div class="box bad">
+      <span class="box-title">Misreading in the paper</span>
+      <p>The paper says $c = 0.431$ means “for every 100 insurgents, a year later there were about 143,” and $\tilde c = 0.164$ means 100 become 86. But under these same assumptions ($\lambda \approx 0$) the system has a <em>repeated</em> eigenvalue $\beta/2 = 0.225$. I checked this: with $bd = 0.0424$, the eigenvalues are 0.225 and 0.225. The insurgents' actual growth is therefore $e^{0.225} = 1.25$ per year (100 → <span class="num">125</span>), and after 2003 it is $e^{-0.075} = 0.93$ (100 → <span class="num">93</span>). The quantities $c$ and $\tilde c$ are the insurgents' <em>own</em> rates before recruitment is added, not their net growth.</p>
+    </div>
+  </section>
+
+  <section id="decoupled">
+    <h2>7. The decoupled system</h2>
+    <p>Since $I/S \approx 0.001$, the authors set $d = \tilde d = 0$ (no recruitment) and $b = \tilde b$. Insurgents then evolve on their own, and $S$ is driven by them:</p>
+    <div class="eq">$$\dot I = cI \Rightarrow I = I_0 e^{ct}, \qquad \dot S - aS = -bI_0e^{ct} \;\Rightarrow\; S(t) = S_0e^{at} + \frac{bI_0}{c-a}\big(e^{at} - e^{ct}\big),\ \ 0 \le t \le 10.$$</div>
+    <p>After 2003 ($\dot I = -\tilde c I$), the paper writes</p>
+    <div class="eq">$$S(t) \overset{?}{=} S(10)\Big(e^{\tilde a\tau} - \frac{bI_0}{\tilde c + \tilde a}\big(e^{\tilde a\tau} - e^{-\tilde c\tau}\big)\Big),\qquad \tau = t - 10,$$</div>
+    <p>and plots it (its Fig. 4) as $S$ dipping until 2003 and then recovering. That is the paper's one forecast: the general population's growth slows, drops and then recovers after the policy change.</p>
+    <div class="box bad">
+      <span class="box-title">Two problems</span>
+      <p><b>(1) It contradicts Section 6.</b> Setting $d = 0$ makes the matrix triangular, with eigenvalues $a$ and $c$, so $\lambda = -(a-c)^2/4$, which is far from zero. Fig. 4 uses $c = 0.431$ (I reproduced its curves exactly with $I_0/S_0 = 0.001$). That makes insurgents grow 74-fold over the decade, while the data shows 9.5-fold.</p>
+      <p><b>(2) The post-2003 formula is wrong.</b> At $t = 10$ the forcing term is $b\,I(10)$, not $b\,I_0$, and it shouldn't be multiplied by $S(10)$. The correct continuation is</p>
+      <div class="eq">$$S(t) = S(10)\,e^{\tilde a\tau} - \frac{b\,I(10)}{\tilde a + \tilde c}\big(e^{\tilde a\tau} - e^{-\tilde c\tau}\big).$$</div>
+      <p>Right after 2003, $S'(10^+) = \tilde a S(10) - bI(10) = -0.060 < 0$. So $S$ keeps <em>falling</em> after 2003, and the forecast rebound comes from the algebra error.</p>
+    </div>
+    <figure>
+      <svg class="chart" id="fig-s" viewBox="0 0 640 260" role="img" aria-label="Susceptible population: paper's Eq. 28 versus the corrected solution, b = 1"></svg>
+      <div class="legend"><span style="--sw: var(--chart-a)">Paper, Eq. (28)</span><span style="--sw: var(--chart-b)">Corrected (matches direct numerical integration)</span></div>
+      <figcaption>Susceptible population $S$ (1 = its 1993 level), with $b = 1$, $a = 0.019$, $c = 0.431$, $\tilde a = 0.014$, $\tilde c = 0.164$, $I_0 = 0.001$. The curves agree up to 2003 ($t = 10$) and separate after it.</figcaption>
+    </figure>
+  </section>
+
+  <section id="appendix">
+    <h2>8. Appendix: closed-form solutions</h2>
+    <h3>Model 1 with a ramped policy</h3>
+    <p>With $f_1 = 0$ and $f_2 = D(1 - e^{-wt})$, the forcing is $g_1 = aD - D(a+w)e^{-wt}$. The particular solution is a constant plus a decaying exponential:</p>
+    <div class="eq">$$I_p(t) = \frac{aD}{\gamma} - \frac{D(a+w)\,e^{-wt}}{w^2 + \beta w + \gamma}, \qquad S_p(t) = \frac{bD}{\gamma} - \frac{bD\,e^{-wt}}{w^2 + \beta w + \gamma}.$$</div>
+    <p>Add the unforced solution from section 3 and choose $A$ and $B$ to match the initial conditions. This part is correct (it fails only if $w^2 + \beta w + \gamma = 0$, i.e. if the ramp rate equals one of the system's own rates).</p>
+    <h3>Model 2 with a ramped policy: a variable-coefficient equation</h3>
+    <p>Proportional removal makes the coefficients depend on time. I re-derived the elimination symbolically:</p>
+    <div class="eq">$$I'' + \big[\underbrace{D - \beta}_{A} - De^{-wt}\big] I' + \big[\underbrace{\gamma - aD}_{B} + \underbrace{D(a+w)}_{C}\,e^{-wt}\big] I = 0 \quad\checkmark$$</div>
+    <div class="eq">$$S'' + \big[A - De^{-wt}\big] S' + \big[B + aD\,e^{-wt}\big] S = 0.$$</div>
+    <p>(The paper writes the last coefficient as $C + aDe^{-wt}$. It is just the constant $aD$.)</p>
+    <p>Substituting $\xi = e^{-wt}$ turns the exponential coefficients into polynomial ones:</p>
+    <div class="eq">$$\xi^2 I_{\xi\xi} + \xi\big[\tilde D\xi + \tilde A\big] I_\xi + \big[\tilde B + \tilde C\xi\big] I = 0,\qquad \tilde D = \tfrac{D}{w},\ \tilde A = 1 - \tfrac{A}{w},\ \tilde B = \tfrac{B}{w^2},\ \tilde C = \tfrac{C}{w^2}.$$</div>
+    <p>Then set $I = \xi^k\eta$, where $k^2 + (\tilde A - 1)k + \tilde B = 0$:</p>
+    <div class="eq">$$\xi\,\eta'' + \big[\tilde D\xi + 2k + \tilde A\big]\eta' + \big[\tilde Dk + \tilde C\big]\eta = 0.$$</div>
+    <p>The paper and I agree up to this point. One more substitution, $z = -\tilde D\,\xi$, gives Kummer's equation $z\eta'' + (b_K - z)\eta' - a_K\eta = 0$ directly. So the solution is</p>
+    <div class="eq">$$I(t) = \xi^{k}\Big[c_1\, M\big(a_K, b_K, -\tilde D\xi\big) + c_2\, U\big(a_K, b_K, -\tilde D\xi\big)\Big],\qquad a_K = k + \frac{\tilde C}{\tilde D},\ \ b_K = 2k + \tilde A,\ \ \xi = e^{-wt},$$</div>
+    <p>where $M$ and $U$ are Kummer's confluent hypergeometric functions.</p>
+    <div class="box bad">
+      <span class="box-title">The paper's final formula doesn't solve its own equation</span>
+      <p>The paper adds a prefactor $e^{h\xi}$ with $h = (\tilde D^2 - \tilde D)/2$ and uses $-\tilde D^2\xi$ as the argument. The standard reduction needs $h^2 + \tilde D h = 0$, i.e. $h = 0$ or $h = -\tilde D$. I plugged both formulas into the ODE numerically (test values $a = 0.02$, $b = 1$, $c = 0.1$, $d = 0.05$, $D = 0.3$, $w = 0.5$). The corrected form leaves a relative residual of about $10^{-8}$, which is just finite-difference noise. The paper's form leaves $10^{-4}$ to $10^{-2}$. The paper also says to recover $t$ via “$t \to -(\ln t)/w$”; it should be $t = -(\ln \xi)/w$.</p>
+    </div>
+  </section>
+
+  <section id="audit">
+    <h2>9. What checks out</h2>
+    <p>All numbers below come from re-running the equations (script: <span class="tag">paper/verify_adam2009.py</span>).</p>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Claim</th><th>Re-computed</th><th>Verdict</th></tr></thead>
+      <tbody>
+        <tr><td>Eq. (13) passes through 4,000 (1993) and 38,100 (2003)</td><td>4,000 and 38,122</td><td><span class="verdict ok">Holds</span></td></tr>
+        <tr><td>$\gamma = bd - ac \approx 0.106$</td><td>0.106</td><td><span class="verdict ok">Holds</span></td></tr>
+        <tr><td>Piecewise exponentials fit 1993–2003 and after</td><td>4000e<sup>2.25</sup> = 37,951</td><td><span class="verdict ok">Holds</span></td></tr>
+        <tr><td>Model 2 reduces to Eq. (A.13)</td><td>Symbolic derivation agrees</td><td><span class="verdict ok">Holds</span></td></tr>
+        <tr><td>“100 insurgents become 143 a year later” (and 86 after 2003)</td><td>125 and 93 (repeated eigenvalue 0.225, then −0.075)</td><td><span class="verdict no">Wrong</span></td></tr>
+        <tr><td>Decoupled system ($d = 0$) is consistent with the fit</td><td>Needs $bd \approx 0.042$; with $d = 0$, insurgents grow 74× instead of 9.5×</td><td><span class="verdict no">Inconsistent</span></td></tr>
+        <tr><td>Eq. (28): $S$ recovers right after 2003</td><td>Correct solution keeps falling (S′ = −0.060 at 2003)</td><td><span class="verdict no">Algebra error</span></td></tr>
+        <tr><td>Closed form (A.21)–(A.23)</td><td>Residual 10<sup>−4</sup>–10<sup>−2</sup>; corrected Kummer form 10<sup>−8</sup></td><td><span class="verdict no">Wrong</span></td></tr>
+        <tr><td>$\hat C = C + aDe^{-wt}$ in (A.14)</td><td>Should be the constant $aD$</td><td><span class="verdict minor">Minor</span></td></tr>
+        <tr><td>Equation cross-references in section 8; “$t \to -(\ln t)/w$”</td><td>Off by one; should be $t = -(\ln\xi)/w$</td><td><span class="verdict minor">Typo</span></td></tr>
+      </tbody>
+    </table></div>
+    <p>The core idea survives: a linear compartment model whose parameters switch when policy changes, fitted to a stock-over-time series. What doesn't survive is the forecast for the general population and the precise growth interpretation. The fit itself is two points and an eyeball check, with no uncertainty estimate.</p>
+  </section>
+
+  <section id="transfer">
+    <h2>10. Applying it to missing persons</h2>
+    <p>This section is speculative. It asks what the structure would need before it could describe missing children and young adults. It does not claim that it does.</p>
+
+    <h3>The natural translation</h3>
+    <pre class="mermaid">
+flowchart LR
+  S["S: young people at risk<br/>(Census, by age group)"] -- "d(t)·S: go missing" --> I["I: currently missing<br/>(open cases)"]
+  I -- "(c + f(t))·I: found / resolved" --> R["Resolved"]
+  P["Policy (alerts, mandatory reporting,<br/>public databases)"] -. "raises the resolution rate" .-> I
+    </pre>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Paper</th><th>Missing-persons reading</th><th>Do we have it?</th></tr></thead>
+      <tbody>
+        <tr><td>$S$, prey population</td><td>Young people at risk, ages 0–25</td><td>Yes: Census estimates by age, sex, race and state</td></tr>
+        <tr><td>$I$, predator population</td><td>Number of people currently missing (the stock of open cases)</td><td>Only one snapshot (12,353 open public cases)</td></tr>
+        <tr><td>$d$, recruitment</td><td>Rate at which young people go missing</td><td>Not from our data. FBI publishes annual entries (375,304 under 18 in 2023)</td></tr>
+        <tr><td>$c$, insurgent decay</td><td>Rate at which cases are resolved</td><td>Not yet; repeated collection runs would measure it</td></tr>
+        <tr><td>$b$, damage to $S$</td><td>Removal from $S$ by being missing</td><td>Negligible ($I/S \sim 10^{-4}$), so $S$ is unaffected</td></tr>
+        <tr><td>$f_2(t)\,I$, proportional harvesting</td><td>Policy that speeds up finding people</td><td>Policy dates are known; their effect isn't</td></tr>
+      </tbody>
+    </table></div>
+    <p>This is the paper's decoupling run the other way. Here $S$ drives $I$ but $I$ doesn't feed back on $S$, so the system collapses to one linear equation:</p>
+    <div class="eq">$$\frac{dI}{dt} = d(t)\,S(t) - \big(c + f(t)\big)\,I \qquad\Rightarrow\qquad I^{*} = \frac{d\,S}{c}\ \ \text{at steady state}.$$</div>
+    <p>That steady state is Little's law: the stock equals the inflow times the average time spent missing. FBI figures for 2023 give 375,304 under-18 records entered and 29,451 active at year end. That puts the average time a juvenile record stays open at about <span class="num">29 days</span> (29,451 / 375,304 years).</p>
+
+    <h3>What it would need</h3>
+    <ol>
+      <li><b>More than one outflow rate.</b> The paper's single exponential decay rate can't describe this. Our open cases show the outflow rate falling as cases age: about 1.1 per year for cases under 2 years old, 0.17 per year at 2–8 years, and 0.011 per year beyond 15 years. FBI averages imply most records close within weeks. A model would need at least three parallel compartments (days, years, decades), $\dot I_k = p_k\,d\,S - c_k I_k$, or a renewal form $I(t) = \int_0^\infty d\,S(t-\tau)\,\mathrm{Surv}(\tau)\,d\tau$. The paper's linear algebra extends directly; it just becomes block-diagonal.
+        <figure>
+          <svg class="chart" id="fig-h" viewBox="0 0 640 230" role="img" aria-label="Implied resolution rate by case age, log scale"></svg>
+          <figcaption>Implied annual resolution rate of open public cases by how long they have been open (log scale). Estimated from the age profile of our 12,348 dated open cases, assuming steady inflow. Changes in inflow or database coverage would also shape this curve.</figcaption>
+        </figure>
+      </li>
+      <li><b>A time series, not a snapshot.</b> The paper fits $I(t)$ over 13 years. We have $I$ on one day. Two ways to get the series: run the collector repeatedly (each newly delisted case is an observed outflow, measuring $c$ directly), and collect the FBI's annual NCIC statistics (entries, removals and active records each year) for national inflow, outflow and stock.</li>
+      <li><b>Separate measurements of inflow and outflow.</b> This fixes the paper's main weakness. From the stock alone, $\{a, b, c, d\}$ can't be separated. With entries counted (inflow) and removals counted (outflow), $d$ and $c$ are measured, not inferred.</li>
+      <li><b>A model of what gets observed.</b> Public listings are a filtered view of the true stock: $O(t) = \pi(t)\,I(t)$, where $\pi$ is the chance a case gets posted. Our state-level analysis showed $\pi$ varies a lot: Virginia posts heavily to NCMEC, Tennessee to NamUs. Without modeling $\pi$, a policy that changes reporting looks the same as one that changes how often people go missing. Suzanne's Law (2003) made NCIC entry mandatory for anyone missing under age 21. In this model it changes $\pi$, not $d$.</li>
+      <li><b>Policy terms tied to real dates and to the right parameter.</b> The paper's step and ramp shapes carry over. A prevention program lowers $d$. Faster searching raises $c$ (proportional harvesting, Model 2). A reporting mandate raises $\pi$. Each needs a date and a measured before/after rate.</li>
+      <li><b>Separate groups.</b> Rates differ by situation: open runaway cases are typically 2.6 years old, open non-family abductions 34. They also differ by age and sex. That suggests a vector of decoupled equations, one per group, each with its own $d_k$ and $c_k$. This is the same “trend towards simplicity”: many simple linear pieces rather than one coupled nonlinear system.</li>
+      <li><b>Where true predator-prey coupling could enter.</b> A genuine $S\cdot I$ interaction would mean missing people drawing others in, for example peer runaways or trafficking networks. Testing that needs data on links between cases, such as companions or shared locations over time. Our data has only a little of this (7% of NCMEC children went missing with another child), and nothing that measures recruitment over time.</li>
+    </ol>
+    <div class="box">
+      <span class="box-title">What is possible now and what has to wait</span>
+      <p><b>Now:</b> steady-state Little's-law estimates from FBI totals; the multi-rate structure from the age profile of open cases; per-group stocks and population denominators.</p>
+      <p><b>After repeated runs:</b> measured resolution rates $c_k$ by group and age of case, and the dates when cases close.</p>
+      <p><b>With FBI annual series:</b> a fitted $\dot I = dS - cI$ with policy steps, the direct analogue of the paper's piecewise model.</p>
+    </div>
+  </section>
+
+  <footer>
+    Sources: Adam, Sokolowski & Banks (2009), doi:10.1016/j.mcm.2008.03.017. FBI CJIS, <i>2023 NCIC Missing Person and Unidentified Person Statistics</i> (entries by age, active records, Suzanne's Law note). This project's collected NamUs/NCMEC data (open cases as of October 21, 2026). Numerical checks: <span class="tag">paper/verify_adam2009.py</span>.
+  </footer>
+</main>
+
+<script>
+(function () {
+  const NS = "http://www.w3.org/2000/svg";
+  function el(tag, attrs, parent, text) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (text != null) e.textContent = text;
+    parent.appendChild(e);
+    return e;
+  }
+  // Figure: S(t) from Eq. (28) vs corrected continuation
+  (function () {
+    const svg = document.getElementById("fig-s");
+    const W = 640, H = 260, m = { l: 48, r: 16, t: 14, b: 34 };
+    const a = 0.019, c = 0.431, at = 0.014, ct = 0.164, I0 = 0.001, b = 1;
+    const S27 = t => Math.exp(a * t) + b * I0 / (c - a) * (Math.exp(a * t) - Math.exp(c * t));
+    const S10 = S27(10), I10 = I0 * Math.exp(10 * c);
+    const paper = t => t <= 10 ? S27(t) : S10 * (Math.exp(at * (t - 10)) - b * I0 / (ct + at) * (Math.exp(at * (t - 10)) - Math.exp(-ct * (t - 10))));
+    const fixed = t => t <= 10 ? S27(t) : S10 * Math.exp(at * (t - 10)) - b * I10 / (ct + at) * (Math.exp(at * (t - 10)) - Math.exp(-ct * (t - 10)));
+    const x0 = 0, x1 = 20, y0 = 0.7, y1 = 1.25;
+    const X = t => m.l + (t - x0) / (x1 - x0) * (W - m.l - m.r);
+    const Y = v => H - m.b - (v - y0) / (y1 - y0) * (H - m.t - m.b);
+    for (let v = 0.7; v <= 1.2501; v += 0.1) {
+      el("line", { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: "var(--grid)" }, svg);
+      el("text", { x: m.l - 6, y: Y(v) + 4, "text-anchor": "end" }, svg, v.toFixed(1));
+    }
+    for (let t = 0; t <= 20; t += 5) el("text", { x: X(t), y: H - m.b + 16, "text-anchor": "middle" }, svg, String(1993 + t));
+    el("line", { x1: X(10), x2: X(10), y1: m.t, y2: H - m.b, stroke: "var(--ink-2)", "stroke-dasharray": "3 3" }, svg);
+    el("text", { x: X(10) + 5, y: m.t + 10, class: "lab" }, svg, "policy change (2003)");
+    for (const [f, col] of [[paper, "var(--chart-a)"], [fixed, "var(--chart-b)"]]) {
+      let d = "";
+      for (let i = 0; i <= 200; i++) { const t = x0 + (x1 - x0) * i / 200; d += (i ? "L" : "M") + X(t).toFixed(1) + "," + Y(f(t)).toFixed(1); }
+      el("path", { d, fill: "none", stroke: col, "stroke-width": 2 }, svg);
+    }
+    el("text", { x: X(20) - 4, y: Y(paper(20)) - 6, "text-anchor": "end", class: "lab" }, svg, paper(20).toFixed(2));
+    el("text", { x: X(20) - 4, y: Y(fixed(20)) - 6, "text-anchor": "end", class: "lab" }, svg, fixed(20).toFixed(2));
+  })();
+  // Figure: implied hazard by case age (log scale)
+  (function () {
+    const svg = document.getElementById("fig-h");
+    const W = 640, H = 230, m = { l: 150, r: 70, t: 10, b: 30 };
+    const rows = [["Open < 2 years", 1.144], ["Open 2–8 years", 0.165], ["Open 15–35 years", 0.011]];
+    const lo = Math.log10(0.005), hi = Math.log10(2);
+    const X = v => m.l + (Math.log10(v) - lo) / (hi - lo) * (W - m.l - m.r);
+    const bh = 34, gap = 22;
+    for (const v of [0.01, 0.1, 1]) {
+      el("line", { x1: X(v), x2: X(v), y1: m.t, y2: H - m.b, stroke: "var(--grid)" }, svg);
+      el("text", { x: X(v), y: H - m.b + 16, "text-anchor": "middle" }, svg, v + "/yr");
+    }
+    rows.forEach(([lab, v], i) => {
+      const y = m.t + 12 + i * (bh + gap);
+      el("text", { x: m.l - 8, y: y + bh / 2 + 4, "text-anchor": "end", class: "lab" }, svg, lab);
+      el("rect", { x: X(0.005), y, width: Math.max(2, X(v) - X(0.005)), height: bh, rx: 3, fill: "var(--chart-a)" }, svg);
+      const hl = Math.log(2) / v;
+      el("text", { x: X(v) + 6, y: y + bh / 2 + 4, class: "lab" }, svg, v + "/yr · half-life " + (hl < 1 ? hl.toFixed(1) : hl.toFixed(0)) + " y");
+    });
+  })();
+})();
+</script>

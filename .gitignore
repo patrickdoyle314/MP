@@ -1,0 +1,12 @@
+# Downloaded case records and Census files (rebuilt by collect.py; see README)
+data/
+
+# Generated per-person tables; they include names of missing people
+output/
+
+# Python
+__pycache__/
+*.pyc
+
+# Office lock files
+~$*
