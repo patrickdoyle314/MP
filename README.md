@@ -14,6 +14,14 @@ merged into a single person (`sources = namus+ncmec`).
 
 Changes are recorded in [`CHANGELOG.md`](CHANGELOG.md).
 
+## Built alongside another project
+
+This project is being built alongside **[UC-Placement](https://github.com/patrickdoyle314/UC-Placement)**,
+a separate service-planning project. That repository stays private until its review is complete, so
+the link works only for its owner for now. The two stay separate: each has its own data, code, README
+and changelog. They communicate only through aggregate tables under the shared contract in
+[`exchange/EXCHANGE.md`](exchange/EXCHANGE.md); no individual records pass between them.
+
 ## Children and adults are kept apart
 
 Every person and event carries an `age_group`:

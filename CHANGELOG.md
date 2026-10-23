@@ -8,6 +8,12 @@ dates are when the change was made.
 ### To do
 - Rebuild `insights.py` and the Word report children-first, with adult figures in their own section.
 
+## [0.4.1] - 2026-10-22
+
+### Added
+- README section "Built alongside another project", linking to the companion UC-Placement repository
+  (private until its review is complete).
+
 ## [0.4.0] - 2026-10-22
 
 ### Added
