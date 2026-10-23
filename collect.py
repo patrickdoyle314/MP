@@ -512,6 +512,23 @@ def _delist_events(st: dict) -> list[dict]:
                  confidence="high" if w.get("caseIsResolved") else "medium")]
 
 
+def age_group(p: dict) -> str:
+    """'child' (under 18 for the whole recorded age range), 'adult' (18-25), else 'unknown'."""
+    try:
+        lo = int(p["age_missing_min"])
+    except (TypeError, ValueError):
+        return "unknown"
+    try:
+        hi = int(p["age_missing_max"])
+    except (TypeError, ValueError):
+        hi = lo
+    if hi < 18:
+        return "child"
+    if lo >= 18:
+        return "adult"
+    return "unknown"  # age range straddles 18
+
+
 def build_outputs(state: dict):
     persons: dict[str, dict] = {}
     events: dict[str, list[dict]] = {}
@@ -553,10 +570,15 @@ def build_outputs(state: dict):
         else:
             persons[p["person_key"]], events[p["person_key"]] = p, ev
 
+    # Children and adults are analyzed apart: every child figure uses age_group == "child" only.
+    for k in list(persons):
+        persons[k] = {"person_key": k, "age_group": age_group(persons[k]),
+                      **{f: v for f, v in persons[k].items() if f != "person_key"}}
+
     OUT.mkdir(exist_ok=True)
     order = {"before": 0, "last_contact": 1, "between": 2, "found": 3, "unknown": 4}
-    ev_cols = ["person_key", "seq", "phase", "event_type", "date", "date_precision", "city", "state", "lat", "lon",
-               "description", "derived_from", "confidence", "source"]
+    ev_cols = ["person_key", "age_group", "seq", "phase", "event_type", "date", "date_precision", "city", "state",
+               "lat", "lon", "description", "derived_from", "confidence", "source"]
     timeline = []
     with open(OUT / "events.csv", "w", newline="", encoding="utf-8-sig") as fe:
         w = csv.DictWriter(fe, ev_cols, extrasaction="ignore")
@@ -564,7 +586,7 @@ def build_outputs(state: dict):
         for key, p in persons.items():
             evs = sorted(events[key], key=lambda e: (order[e["phase"]], e.get("date") or "9999"))
             for i, e in enumerate(evs, 1):
-                e["person_key"], e["seq"] = key, i
+                e["person_key"], e["age_group"], e["seq"] = key, p["age_group"], i
                 w.writerow(e)
             timeline.append({**p, "events": evs})
             p["n_before"] = sum(e["phase"] == "before" for e in evs)

@@ -10,3 +10,7 @@ __pycache__/
 
 # Office lock files
 ~$*
+
+# Exchange: generated outbox and local-only tag rules
+exchange/outbox/
+exchange/tags.local.json

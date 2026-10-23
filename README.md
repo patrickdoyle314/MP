@@ -12,6 +12,51 @@ timeline: **before** → **last contact** → **between** → **found**.
 When a child appears in both, NCMEC records the NamUs number. The two records are then
 merged into a single person (`sources = namus+ncmec`).
 
+Changes are recorded in [`CHANGELOG.md`](CHANGELOG.md).
+
+## Children and adults are kept apart
+
+Every person and event carries an `age_group`:
+
+| `age_group` | rule | count (2026-10-21 data) |
+|---|---|---|
+| `child` | under 18 for the whole recorded age range | 7,622 |
+| `adult` | 18–25 | 4,728 |
+| `unknown` | no age, or an age range that straddles 18 | 3 |
+
+**Rule:** every figure about children is computed from `child` records only. Adult records are kept,
+labeled and reported separately as context, never pooled into a child figure. `unknown` records are
+in neither group.
+
+The Word report and `insights.py` were built before this split, so their headline figures cover ages
+0–25 together (the per-age tables already separate 0–11, 12–17 and 18–25). Rebuilding them
+children-first is listed under *Unreleased* in the changelog.
+
+## Layout
+
+```
+collect.py            collect NamUs + NCMEC cases, build timelines (output/)
+circumstances.py      classify how, where and doing what (output/circumstances.csv)
+insights.py           insights with Census comparisons (report/insights.json)
+report/               Word report builder, charts, summary JSONs
+paper/                notes and checks for Adam, Sokolowski & Banks (2009)
+exchange/             aggregate exchange with adjacent projects (see below)
+data/, output/        downloaded and generated data (not committed)
+```
+
+## Exchange with adjacent projects
+
+This project shares **aggregates only** with adjacent projects through the file contract in
+[`exchange/EXCHANGE.md`](exchange/EXCHANGE.md) (v1.0). `exchange/export_exchange.py` writes
+`exchange/outbox/` (not committed): counts of open cases by fiscal year and state, with children
+(`open_cases_u18`) and adults (`open_cases_18_25`) as separate measures. Counts under 5 are marked
+unpublishable. A peer's outbox can be read with `--peer` to count cases in the counties that peer lists.
+Local tag rules live in `exchange/tags.local.json`, which is never committed.
+
+```bash
+python exchange/export_exchange.py --peer ../<peer-project>/exchange/outbox
+```
+
 ## Run
 
 ```bash

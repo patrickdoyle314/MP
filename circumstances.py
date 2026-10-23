@@ -100,11 +100,11 @@ for label in ("Non-family abduction", "Family abduction", "Outdoors / water (los
 
 with open("output/circumstances.csv", "w", newline="", encoding="utf-8-sig") as f:
     w = csv.writer(f)
-    w.writerow(["person_key", "first_name", "last_name", "age_missing", "last_contact_date",
+    w.writerow(["person_key", "age_group", "first_name", "last_name", "age_missing", "last_contact_date",
                 "last_contact_state", "how_missing", "places_mentioned", "activities_mentioned", "url"])
     for r in rows:
         p = r["p"]
-        w.writerow([p["person_key"], p["first_name"], p["last_name"], p["age_missing_min"],
+        w.writerow([p["person_key"], p["age_group"], p["first_name"], p["last_name"], p["age_missing_min"],
                     p["last_contact_date"], p["last_contact_state"], r["type"],
                     "; ".join(r["place"]), "; ".join(r["act"]), p["url"]])
 print("\nwrote output/circumstances.csv")
