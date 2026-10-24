@@ -1,0 +1,13 @@
+state_code,state_name,region_id
+NY,New York,1
+PA,Pennsylvania,1
+MA,Massachusetts,1
+IL,Illinois,2
+OH,Ohio,2
+MN,Minnesota,2
+TX,Texas,3
+FL,Florida,3
+GA,Georgia,3
+CA,California,4
+WA,Washington,4
+AZ,Arizona,4

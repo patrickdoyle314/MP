@@ -2,8 +2,12 @@
 requests>=2.31
 
 # Analysis and models
+pandas>=2.1
 numpy>=1.26
 scipy>=1.11
+
+# SQL (DuckDB runs the statements in sql/)
+duckdb>=1.1
 
 # Spatial analysis: neighbor weights for state and county patterns; pulls in geopandas, shapely, pandas
 libpysal>=4.10
@@ -11,6 +15,9 @@ libpysal>=4.10
 # Reporting: charts and the Word report
 matplotlib>=3.8
 python-docx>=1.1
+
+# Tests
+pytest>=8.0
 
 # Probes and paper checks (optional)
 scikit-learn>=1.4

@@ -14,3 +14,13 @@ __pycache__/
 # Exchange: generated outbox and local-only tag rules
 exchange/outbox/
 exchange/tags.local.json
+
+# Practice database (rebuilt by sql/practice/build_practice_db.py)
+sql/practice/practice.duckdb
+.pytest_cache/
+
+# Dashboard datasets (rebuilt by report/dashboard_data.py; include small state counts)
+report/dashboard/
+
+# The dummy practice database's source tables are synthetic and committed
+!sql/practice/data/

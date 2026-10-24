@@ -1,0 +1,19 @@
+region_name,case_type_name,cases,resolved,pct_resolved,resolved_within_30_days,avg_days_to_resolve,median_days_to_resolve,agencies_reporting
+Midwest,Ran away,106,101,95.3,93,12.5,10.0,5
+Midwest,Not stated,65,51,78.5,18,78.7,52.0,5
+Midwest,Family abduction,20,14,70.0,5,79.5,58.5,5
+Midwest,Lost or injured,12,7,58.3,2,52.1,55.0,5
+Northeast,Ran away,264,247,93.6,217,12.8,8.0,11
+Northeast,Not stated,127,105,82.7,41,62.6,46.0,11
+Northeast,Family abduction,50,33,66.0,3,137.3,134.0,11
+Northeast,Lost or injured,25,16,64.0,5,81.9,68.0,11
+Northeast,Non-family abduction,10,4,40.0,1,206.8,220.5,6
+South,Ran away,123,114,92.7,109,11.1,8.5,5
+South,Not stated,64,50,78.1,22,68.3,44.5,5
+South,Family abduction,12,9,75.0,3,77.4,50.0,5
+South,Lost or injured,10,7,70.0,1,41.1,42.0,5
+West,Ran away,253,240,94.9,219,13.5,9.0,9
+West,Not stated,98,83,84.7,29,68.4,51.0,9
+West,Family abduction,47,33,70.2,8,152.3,86.0,9
+West,Lost or injured,24,19,79.2,4,83.3,74.0,9
+West,Non-family abduction,6,4,66.7,0,198.0,128.0,4

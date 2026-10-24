@@ -51,7 +51,11 @@ insights.py           insights with Census comparisons (report/insights.json)
 report/               Word report builder, charts, summary JSONs
 paper/                notes and checks for Adam, Sokolowski & Banks (2009)
 MODELING.md           predictive modeling status and ranked candidates
-models/               national stock-and-flow model (FBI NCIC), data and results
+models/               national stock-and-flow model (FBI NCIC), data, results, MODEL_CARD.md
+analysis/             pandas + NumPy open-case metrics
+sql/                  SQL statements (DuckDB), dummy practice database
+results/              aggregate outputs of analysis/ and sql/
+tests/                pytest checks
 requirements.txt      Python packages: SciPy, libpysal, matplotlib and python-docx, among others
 probes/               quick feasibility checks for model candidates
 exchange/             aggregate exchange with adjacent projects (see below)
@@ -159,12 +163,32 @@ python insights.py
 python models/stock_flow_ncic.py   # national model; also draws its chart
 python report/charts.py
 python report/build_report.py
+python report/dashboard_data.py    # datasets for the interactive dashboard (aggregates only)
 ```
 
 The report is titled *Missing Children in the United States*: children first, young adults in their own
 part. `insights.py` also reads two Census Bureau population-estimate files in `data/census/`,
 downloaded from https://www2.census.gov/programs-surveys/popest/datasets/2020-2024/state/asrh/.
 Charts use `matplotlib` and the report uses `python-docx` (both in `requirements.txt`).
+
+## Analysis, SQL and tests
+
+| Path | What it is |
+|---|---|
+| `analysis/open_case_metrics.py` | pandas + NumPy: how long open cases have been open and the resolution rate that implies, cases found so far, and FBI juvenile flows; children and young adults separately. Writes `results/` (counts under 5 shown as "<5") |
+| `sql/ncic_flows.sql` | SQL with a CTE and window functions (`LAG`, moving `AVG`): juvenile records closed per year and average days open, from the FBI figures |
+| `sql/practice/` | A dummy database (synthetic data, no real cases) and `caseload_by_region.sql`: four joins with aggregate functions (`COUNT`, `AVG`, `MEDIAN`, `SUM(CASE …)`, `HAVING`) |
+| `sql/run_sql.py` | Runs a SQL file with DuckDB and saves the result in `results/` |
+| `models/MODEL_CARD.md` | Model card for the national stock-and-flow model |
+| `tests/` | pytest: each SQL statement must match the same calculation in pandas |
+
+```bash
+python analysis/open_case_metrics.py
+python sql/run_sql.py sql/ncic_flows.sql
+python sql/practice/build_practice_db.py
+python sql/run_sql.py sql/practice/caseload_by_region.sql --db sql/practice/practice.duckdb
+python -m pytest
+```
 
 ## National model (`models/`)
 

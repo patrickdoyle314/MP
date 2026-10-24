@@ -7,6 +7,20 @@ dates are when the change was made.
 
 Nothing yet.
 
+## [0.7.0] - 2026-10-23
+
+### Added
+- `analysis/open_case_metrics.py` (pandas + NumPy): years open and implied resolution rate by case age,
+  cases found so far, FBI juvenile flows; children and young adults separately; results in `results/`.
+- `sql/ncic_flows.sql`: CTE and window functions (`LAG`, moving `AVG`) over the FBI juvenile figures.
+- `sql/practice/`: dummy database (synthetic, seeded) and `caseload_by_region.sql` with four joins and
+  aggregate functions; `sql/run_sql.py` runs any statement with DuckDB.
+- `models/MODEL_CARD.md`: model card for the national stock-and-flow model.
+- `tests/`: pytest checks that each SQL statement matches pandas.
+- `requirements.txt`: pandas, DuckDB, pytest.
+- `report/dashboard_data.py`: writes the interactive dashboard's datasets (`report/dashboard/*.json`):
+  aggregate counts only, every row tagged child or adult so the dashboard shows one group at a time.
+
 ## [0.6.0] - 2026-10-22
 
 ### Added
