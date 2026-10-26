@@ -19,6 +19,24 @@ Usage:
   python collect.py --offline       # rebuild outputs from cached raw data, no network
 """
 
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: this is the data-collection engine. Each week it downloads every OPEN public
+# missing-person case for people 25 and under from NamUs (U.S. Justice Department) and NCMEC
+# (missingkids.org), compares the list with last week's, and treats a case that disappears from the
+# public list as "found". It then turns each case into one row per person and a timeline of events.
+#
+# Sections, top to bottom:
+#   1. http          polite, retrying web requests, run in parallel threads
+#   2. NamUs / NCMEC  how each source is listed and downloaded
+#   3. state          the week-to-week memory that detects found cases
+#   4. narrative mining   reading dates and clues out of free-text case summaries (regular expressions)
+#   5. normalize      turning each source's record into one common shape
+#   6. outputs        writing persons.csv, events.csv and timeline.json
+#
+# Python ideas: type hints (name: str -> dict), threads (ThreadPoolExecutor), regular expressions (re),
+# JSON, argparse for command-line options, caching with pickle, dict/list comprehensions.
+# ===================================================================================================
 from __future__ import annotations
 
 import argparse
@@ -48,13 +66,17 @@ NAMUS = "https://www.namus.gov"
 NCMEC_API = "https://api.missingkids.org/missingkids/servlet/JSONDataServlet"
 NCMEC_SEARCH = dict(action="publicSearch", searchLang="en_US", LanguageId="en_US",
                     subjToSearch="child", missState="All", missCountry="US")
+# We identify ourselves honestly in the User-Agent header that websites see.
 UA = "Mozilla/5.0 (public missing-persons research collector)"
 
-TODAY = dt.date.today().isoformat()
+TODAY = dt.date.today().isoformat()  # today's date as text, e.g. '2026-10-25'; stored with each run
 
 
 # --------------------------------------------------------------------------- http
 
+# --------------------------------------------------------------------------- http
+# threading.local() gives every worker thread its own private copy of a variable. Each thread keeps
+# its own web session (connection), because sessions should not be shared between threads.
 _local = threading.local()
 
 
@@ -65,6 +87,9 @@ def session() -> requests.Session:
     return _local.s
 
 
+# Retry with "exponential backoff": wait 2, 3, 5, 9, 17 seconds between attempts (2**attempt + 1).
+# Busy public servers sometimes answer 429 (too many requests) or 5xx (server error); waiting longer
+# each time is polite and usually succeeds. `**kw` passes any extra options straight through to requests.
 def fetch(method: str, url: str, *, tries: int = 5, **kw) -> requests.Response:
     for attempt in range(tries):
         try:
@@ -89,6 +114,9 @@ def fetch_json(method: str, url: str, **kw):
     raise RuntimeError(f"non-JSON response from {url}")
 
 
+# Download many records at once. ThreadPoolExecutor runs `fn` on several items in parallel (here 4-5
+# at a time, which is fast but still polite). as_completed hands back each result as soon as it
+# finishes. One failed download is logged and skipped rather than stopping the whole run.
 def parallel(fn, items, workers: int, label: str):
     done, errors = 0, []
     with ThreadPoolExecutor(workers) as ex:
@@ -109,6 +137,10 @@ def parallel(fn, items, workers: int, label: str):
 
 # --------------------------------------------------------------------------- NamUs
 
+# --------------------------------------------------------------------------- NamUs
+# Ask the NamUs search API for every open case where the person was 25 or under when last seen.
+# The API returns at most 10,000 rows per request, so we "page": ask for rows 0-4999, then 5000-9999,
+# and so on, until we have the full count.
 def namus_list(max_age: int) -> dict[str, str]:
     """{case_id: modifiedDateTime} for open cases with age-at-missing <= max_age."""
     results, count, page = [], None, 5000  # API caps a page at 10000
@@ -133,6 +165,8 @@ def namus_list(max_age: int) -> dict[str, str]:
     return out
 
 
+# Only download a case if it is new or NamUs says it was modified since our copy. Skipping unchanged
+# records keeps the weekly run to a couple of minutes instead of an hour.
 def namus_fetch(case_id: str, modified: str, refresh: bool):
     path = RAW / "namus" / f"{case_id}.json"
     if path.exists() and not refresh:
@@ -142,6 +176,8 @@ def namus_fetch(case_id: str, modified: str, refresh: bool):
     path.write_text(json.dumps(data, indent=1), "utf-8")
 
 
+# When a NamUs case vanishes from the list, ask NamUs about it directly: was it resolved, or did it
+# just fall outside our age filter? This protects the "found" count from false alarms.
 def namus_check_delisted(case_id: str) -> dict:
     """Ask NamUs about a case that dropped off the listing. Returns what it says."""
     r = fetch("GET", f"{NAMUS}/api/CaseSets/NamUs/MissingPersons/Cases/{case_id}")
@@ -159,6 +195,10 @@ def namus_check_delisted(case_id: str) -> dict:
 
 # --------------------------------------------------------------------------- NCMEC
 
+# --------------------------------------------------------------------------- NCMEC
+# NCMEC's search is page by page (20 posters a page) and remembers the search in a cookie, so pages
+# must be read in order with one session. The key "PREFIX-CASE-SEQ" separates siblings that share a
+# case number.
 def ncmec_list() -> dict[str, dict]:
     """{'PREFIX-CASE-SEQ': search row} for every open child poster."""
     s = requests.Session()
@@ -193,12 +233,19 @@ def ncmec_fetch(key: str, row: dict, refresh: bool):
 
 # --------------------------------------------------------------------------- state / found
 
+# --------------------------------------------------------------------------- state / found
+# data/state.json is the project's memory between weekly runs: for every case, when we first saw it,
+# when we last saw it, and whether it has dropped off the public list. Neither database publishes
+# outcomes, so a case disappearing between two runs is the only public signal that a person was found.
 def load_state() -> dict:
     if STATE_FILE.exists():
         return json.loads(STATE_FILE.read_text("utf-8"))
     return {"runs": [], "namus": {}, "ncmec": {}}
 
 
+# Called once per source per run. It marks every case seen today as listed, counts new ones, and
+# finds cases that were listed last time but not today ("gone"). Those become "delisted" (found),
+# with the window between the two runs as the best available date.
 def update_state(state: dict, source: str, current: set[str], namus_max_age: int | None,
                  workers: int) -> dict:
     """Update listing history; return this run's counts for the run log."""
@@ -214,6 +261,8 @@ def update_state(state: dict, source: str, current: set[str], namus_max_age: int
             stats["relisted"] += 1
         c["status"] = "listed"
 
+    # List comprehension with a filter: keep each case id whose status was "listed" but which is missing
+    # from today's list.
     gone = [cid for cid, c in cases.items() if c.get("status") == "listed" and cid not in current]
     stats["no_longer_listed"] = len(gone)
     if not gone:
@@ -238,10 +287,16 @@ def update_state(state: dict, source: str, current: set[str], namus_max_age: int
 
 # --------------------------------------------------------------------------- narrative mining
 
+# --------------------------------------------------------------------------- narrative mining
+# Case summaries are free text ("She was last seen on March 9, 2000 near..."). Regular expressions
+# (patterns for text) pull out dates and clues. r"..." is a raw string: backslashes are kept as typed,
+# which regular expressions need. (?:...) groups without capturing; \b means "word boundary".
 MONTH = (r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|"
          r"Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?")
 MONTH_NUM = {m: i for i, m in enumerate(
     ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"], 1)}
+# Each date pattern comes with its precision (exact day, month only, year only), so a timeline never
+# pretends to know more than the record says.
 DATE_PATTERNS = [  # (regex, precision)
     (re.compile(rf"\b({MONTH})\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+((?:19|20)\d\d)\b", re.I), "day"),
     (re.compile(r"\b(\d{1,2})/(\d{1,2})/((?:19|20)?\d\d)\b"), "day_numeric"),
@@ -252,6 +307,7 @@ DATE_PATTERNS = [  # (regex, precision)
                 r"(?!\s*(?:block|[NSEW]\.?\s|north|south|east|west|hours|hrs))", re.I),
      "year"),  # not "1906 block" / "1900 hours"
 ]
+# A date right after "DOB" or "born" is someone's birthday, not an event; this pattern lets us skip it.
 DOB_RE = re.compile(r"\b(?:DOB|D\.O\.B\.|born|birth(?:day|date)?|date of birth)\W{0,3}(?:of|on|is)?\W{0,3}"
                     r"(?:\d{1,2}\s*)?$", re.I)
 
@@ -265,6 +321,8 @@ STATES = ("Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaw
 PLACE_RE = re.compile(rf"\b(?:in|to|near|at|from|of)\s+((?:[A-Z][\w.'-]*\s?){{1,4}}),\s*({STATES}|[A-Z]{{2}})\b")
 
 # The person themself found / identified (vs. their car, phone, belongings - see EVIDENCE_RE).
+# Did the PERSON turn up (found, located, remains identified), as opposed to their car or phone?
+# (?P<subj>...) is a named group: we can later ask which word was the subject ("she", "he", a name).
 PERSON_FOUND_RE = re.compile(
     r"\b(?P<subj>[Hh]e|[Ss]he|[Tt]hey|[Tt]he (?:child|teen|juvenile|girl|boy)|[A-Z][a-z]+) (?:"
     r"(?:was|were|has been|have been) (?:later |eventually |safely )?"
@@ -275,6 +333,8 @@ PERSON_FOUND_RE = re.compile(
 NOT_RETURNED_RE = re.compile(r"\b(?:never|not|no longer|failed to|\w+n\W{0,3}t)\b[\w ]{0,15}\breturn", re.I)
 LAST_SEEN_RE = re.compile(r"\b(?:last (?:seen|known|contact|heard)|went missing|disappeared|missing since|"
                           r"has been missing|left (?:his|her|their|the) (?:home|residence|house))\b", re.I)
+# Belongings found or used after the disappearance (car, phone, bank card) are clues "between" the
+# last sighting and resolution, not evidence the person was found.
 EVIDENCE_RE = re.compile(
     r"\b(?:vehicle|car|truck|van|suv|motorcycle|bike|bicycle|phone|cell ?phone|purse|wallet|"
     r"backpack|bag|belongings|clothing|shoes?|keys|card|receipts?|items?|jacket|note)\b.{0,60}?"
@@ -310,6 +370,8 @@ def parse_date(m: re.Match, precision: str, ref_year: int | None):
     return None, None
 
 
+# Compare two dates at the coarser precision: "March 2000" vs "March 9, 2000" counts as the same
+# month. Returns -1 (before), 0 (same) or 1 (after). (a > b) - (a < b) is a compact way to get that.
 def compare(d: dt.date, prec: str, ref: dt.date) -> int:
     """-1 before, 0 same (at the coarser precision), 1 after."""
     if prec == "year":
@@ -334,6 +396,9 @@ def person_found(sent: str, names: set[str]) -> bool:
     return False
 
 
+# The heart of the timeline: split the summary into sentences, find any dates and clue words in each,
+# and tag the sentence as BEFORE the disappearance, at LAST CONTACT, BETWEEN (after last contact) or
+# FOUND. Every event keeps the original sentence, so a reader can always check the machine's reading.
 def mine_narrative(text: str, last_contact: dt.date | None, field: str,
                    names: tuple[str, ...] = ()) -> list[dict]:
     """Turn free-text circumstances into dated / phase-tagged events."""
@@ -342,6 +407,8 @@ def mine_narrative(text: str, last_contact: dt.date | None, field: str,
     events = []
     names_lc = {n.lower() for n in names if n}
     text = re.sub(r"\s+", " ", text).strip()
+    # Split into sentences at ". ", "! " or "? " followed by a capital letter. (?<=...) and (?=...) look
+    # behind and ahead without consuming characters, so the punctuation stays with its sentence.
     for sent in re.split(r"(?<=[.!?])\s+(?=[A-Z\"(])", text):
         found_hint = person_found(sent, names_lc)
         evidence = bool(EVIDENCE_RE.search(sent))
@@ -376,7 +443,7 @@ def mine_narrative(text: str, last_contact: dt.date | None, field: str,
 
         base = dict(event_type=etype, description=sent, **loc, derived_from=f"narrative:{field}")
         if dates:
-            d, p = min(dates)
+            d, p = min(dates)  # earliest date in the sentence; tuples compare by their first item
             if found_hint:
                 phase = "found"
             elif last_contact is None:
@@ -399,6 +466,9 @@ def mine_narrative(text: str, last_contact: dt.date | None, field: str,
 
 # --------------------------------------------------------------------------- normalize
 
+# --------------------------------------------------------------------------- normalize
+# NamUs and NCMEC describe the same things with different field names and formats. "Normalizing"
+# maps both onto one common set of columns so every later step can treat a person the same way.
 def _d(s: str | None) -> dt.date | None:
     return parse_record_date(s)
 
@@ -407,6 +477,8 @@ def _name(o) -> str:
     return (o or {}).get("name", "") if isinstance(o, dict) else ""
 
 
+# One NamUs record -> one person (dict of columns) + a list of events. d.get("x") or {} means
+# "use the field if present, otherwise an empty dict", so missing fields never crash the run.
 def normalize_namus(d: dict, st: dict) -> tuple[dict, list[dict]]:
     sid, sdesc = d.get("subjectIdentification") or {}, d.get("subjectDescription") or {}
     sight = d.get("sighting") or {}
@@ -417,6 +489,8 @@ def normalize_namus(d: dict, st: dict) -> tuple[dict, list[dict]]:
     circ = (d.get("circumstances") or {}).get("circumstancesOfDisappearance", "")
     cid = str(d["id"])
     person = dict(
+        # f-strings: f"namus:{cid}" inserts the value of cid into the text. The key says which source a person
+        # came from, e.g. "namus:162332".
         person_key=f"namus:{cid}", sources="namus", case_type="", namus_id=d.get("idFormatted", ""),
         ncmec_id="", ncic="",
         first_name=sid.get("firstName", ""), middle_name=sid.get("middleName", ""),
@@ -459,6 +533,8 @@ def normalize_namus(d: dict, st: dict) -> tuple[dict, list[dict]]:
     return person, events
 
 
+# Same idea for an NCMEC poster. NCMEC also lists other children who went missing together
+# (otherChildList), recorded here as "companion" events.
 def normalize_ncmec(d: dict, key: str, st: dict) -> tuple[dict, list[dict]]:
     b = d["childBean"]
     last = _d(b.get("missingDate"))
@@ -521,6 +597,9 @@ def _delist_events(st: dict) -> list[dict]:
                  confidence="high" if w.get("caseIsResolved") else "medium")]
 
 
+# The project's most important rule: children (under 18 for their WHOLE recorded age range) and young
+# adults (18-25) are analyzed separately and never pooled. Anyone whose age range straddles 18, or who
+# has no age, is "unknown" and kept out of both groups.
 def age_group(p: dict) -> str:
     """'child' (under 18 for the whole recorded age range), 'adult' (18-25), else 'unknown'."""
     try:
@@ -538,6 +617,11 @@ def age_group(p: dict) -> str:
     return "unknown"  # age range straddles 18
 
 
+# --------------------------------------------------------------------------- outputs
+# Parsing 12,800 raw files is the slowest part of a rebuild, but most files don't change from week to
+# week. The cache stores each file's parsed result next to its size and modified time, and re-parses
+# only files that changed. A hash of this script is part of the cache key, so editing the code
+# automatically throws the old cache away.
 NORM_CACHE = ROOT / "data" / "cache" / "normalized.pkl"
 
 
@@ -578,6 +662,8 @@ def normalized_records() -> dict:
     return out
 
 
+# The cache holds only what never changes for a file. This week's listing status (listed / delisted,
+# first and last seen) is added here. dict(person) makes a copy, so the cached original is untouched.
 def apply_state(person: dict, events: list, st: dict) -> tuple[dict, list]:
     """Copy a cached record and add this run's listing state (status, listing dates, delisting event)."""
     person, events = dict(person), [dict(e) for e in events]
@@ -588,6 +674,8 @@ def apply_state(person: dict, events: list, st: dict) -> tuple[dict, list]:
     return person, events + _delist_events(st)
 
 
+# Assemble everything: NamUs people first, then NCMEC posters. A child listed in both databases is
+# merged into ONE person (NCMEC records the NamUs case number), so nobody is counted twice.
 def build_outputs(state: dict):
     persons: dict[str, dict] = {}
     events: dict[str, list[dict]] = {}
@@ -601,7 +689,7 @@ def build_outputs(state: dict):
             e["source"] = "namus"
         persons[p["person_key"]], events[p["person_key"]] = p, ev
 
-    namus_index = {p["namus_id"]: k for k, p in persons.items()}
+    namus_index = {p["namus_id"]: k for k, p in persons.items()}  # lookup: NamUs case number -> person key, used for merging
     for (src, stem), (_, rec) in records.items():
         if src != "ncmec" or rec is None:
             continue
@@ -612,6 +700,7 @@ def build_outputs(state: dict):
         if nid and not nid.startswith("MP"):
             nid = f"MP{nid}"
         target = namus_index.get(nid)
+        # Merge rule: keep the NamUs record as the base and add NCMEC's ids and any fields NamUs left empty.
         if target:  # same child in both databases: merge onto the NamUs record
             base = persons[target]
             base["sources"] = "namus+ncmec"
@@ -634,10 +723,14 @@ def build_outputs(state: dict):
                       **{f: v for f, v in persons[k].items() if f != "person_key"}}
 
     OUT.mkdir(exist_ok=True)
+    # Sort each person's events in story order: before -> last contact -> between -> found, then by date.
+    # "9999" makes undated events sort last within their phase.
     order = {"before": 0, "last_contact": 1, "between": 2, "found": 3, "unknown": 4}
     ev_cols = ["person_key", "age_group", "seq", "phase", "event_type", "date", "date_precision", "city", "state",
                "lat", "lon", "description", "derived_from", "confidence", "source"]
     timeline = []
+    # "with open(...) as f" opens a file and guarantees it is closed afterwards, even on an error.
+    # encoding="utf-8-sig" adds a marker that makes Excel read accented characters correctly.
     with open(OUT / "events.csv", "w", newline="", encoding="utf-8-sig") as fe:
         w = csv.DictWriter(fe, ev_cols, extrasaction="ignore")
         w.writeheader()
@@ -669,6 +762,9 @@ def build_outputs(state: dict):
 
 # --------------------------------------------------------------------------- main
 
+# --------------------------------------------------------------------------- main
+# argparse turns command-line options (python collect.py --offline --max-age 21) into variables.
+# --offline skips all downloads and only rebuilds the outputs from data already on disk.
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--source", choices=["namus", "ncmec", "all"], default="all")

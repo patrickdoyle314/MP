@@ -7,6 +7,20 @@ dates are when the change was made.
 
 Nothing yet.
 
+## [0.9.1] - 2026-10-26
+
+### Changed
+- Comments for readers learning Python: every Python and SQL file now opens with a "HOW TO READ THIS FILE"
+  block (business purpose, layout, Python ideas used), with notes through the code on why each step exists
+  and which Python, pandas or SQL technique it uses. README gains a "Reading the code" section with a
+  suggested reading order.
+- Comments and docstrings only: syntax trees match the previous version file by file (SQL compared without
+  comments); a full rebuild reproduces every output, the report text and the dashboard data exactly; tests pass.
+
+### Notes
+- Because `collect.py` changed, its parse cache is rebuilt once: the first `python pipeline.py` after this
+  version takes about 2 minutes instead of about 15 s.
+
 ## [0.9.0] - 2026-10-26
 
 ### Added

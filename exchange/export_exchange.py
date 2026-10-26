@@ -5,6 +5,18 @@ Aggregates only: counts of open cases by federal fiscal year and state, plus opt
 
 Usage: python exchange/export_exchange.py [--peer ../<peer-folder>/exchange/outbox]
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: share this project's numbers with the companion UC-Placement project WITHOUT
+# sharing any records. It writes aggregate counts (by fiscal year and state, children and young adults
+# as separate measures) to exchange/outbox/, following the contract in exchange/EXCHANGE.md.
+#
+# Privacy rule: counts under 5 are marked "not publishable" so nothing small enough to point to a person
+# is ever published. Local tag rules live in exchange/tags.local.json, which is never committed.
+#
+# Python ideas: argparse options, Counter keyed by tuples, writing CSV and JSON, a version check
+# between two projects (a "contract").
+# ===================================================================================================
 import argparse
 import collections
 import csv
@@ -19,15 +31,17 @@ from common import ROOT, USPS, census, fiscal_year, read_csv, state_code  # noqa
 
 HERE = ROOT / "exchange"
 OUTBOX = HERE / "outbox"
-CONTRACT_VERSION = "1.0"
-THRESHOLD = 5
+CONTRACT_VERSION = "1.0"  # both projects must speak the same major version of the file format
+THRESHOLD = 5  # counts below this are flagged as not publishable
 COLUMNS = ["geo_level", "state", "county_key", "county_name", "fiscal_year", "measure", "value", "publishable"]
 
-def county_key(name, st):
+def county_key(name, st):  # a comparable county key such as 'harris|TX' (lower case, no 'County')
     n = re.sub(r"\s+(county|parish|borough|census area|municipality)$", "", (name or "").strip().lower())
     return f"{n}|{st}" if n and st else ""
 
 
+# Optional local rules ("tags") that count cases whose summary matches a pattern. Kept out of the
+# public repository on purpose.
 def load_tags():
     path = HERE / "tags.local.json"
     if not path.exists():
@@ -35,6 +49,8 @@ def load_tags():
     return {k: re.compile(v, re.I) for k, v in json.loads(path.read_text("utf-8")).items()}
 
 
+# Read the companion project's outbox to learn which counties it lists for each year, after checking
+# both sides use the same contract version.
 def load_peer_counties(peer):
     """{(fiscal_year, county_key)} for county rows in a peer outbox, after a version check."""
     if not peer:
@@ -48,6 +64,8 @@ def load_peer_counties(peer):
     return keys, manifest["producer"]
 
 
+# Count open cases into buckets keyed by (level, state, fiscal year, measure). Children and young
+# adults land in different measures, so they can never be added together by mistake.
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--peer", type=Path, help="a peer project's exchange/outbox folder")

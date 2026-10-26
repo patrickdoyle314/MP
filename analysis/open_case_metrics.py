@@ -11,6 +11,15 @@ Writes aggregates only to results/. Counts under 5 are shown as "<5" (the reposi
 
 Usage: python analysis/open_case_metrics.py   (after collect.py)
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: three short tables in results/: how long open cases have been open (and the
+# resolution rate that implies), how many cases have been found since weekly collection began, and the
+# FBI's juvenile record flows. Children and young adults are kept separate.
+#
+# Python ideas: pandas DataFrames (tables you can filter, group and summarize), NumPy arrays
+# (fast math on whole columns at once), np.histogram, groupby, writing CSVs with .to_csv().
+# ===================================================================================================
 import json
 from pathlib import Path
 
@@ -19,6 +28,8 @@ import pandas as pd
 
 ROOT = Path(__file__).resolve().parent.parent
 RESULTS = ROOT / "results"
+# Small-number rule: counts under 5 are shown as "<5" because this repository is public and tiny
+# counts can point to individuals.
 SUPPRESS = 5
 AGE_EDGES = np.array([0, 0.25, 0.5, 1, 2, 3, 5, 10, 20, 30, 40, 50, 60])  # years since last seen
 
@@ -29,6 +40,9 @@ def suppress(n: int):
 
 # --------------------------------------------------------------------------- open-case snapshot
 
+# pd.read_csv loads the table; usecols reads only the columns we need (faster). pd.to_datetime turns
+# text into dates; errors="coerce" turns unreadable dates into NaT (missing) instead of failing.
+# .isin([...]) keeps only children and young adults.
 def load_cases() -> pd.DataFrame:
     df = pd.read_csv(ROOT / "output/persons.csv", encoding="utf-8-sig",
                      usecols=["person_key", "age_group", "status", "last_contact_date", "sources"])
@@ -41,6 +55,9 @@ def latest_run_date() -> pd.Timestamp:
     return pd.Timestamp(runs[-1]["date"])
 
 
+# If new cases arrive at a roughly steady rate, the number of open cases at each "age" (years open)
+# falls as cases are resolved. The speed of that fall estimates the resolution rate at that age.
+# np.diff takes differences between neighboring values; np.log turns ratios into differences.
 def implied_resolution_rate(years_open: np.ndarray, edges: np.ndarray = AGE_EDGES) -> pd.DataFrame:
     """Open cases per year of case age in each bin, and the rate (per year) at which that density falls
     between neighbouring bins: -d ln(density) / d age. Assumes roughly steady inflow."""
@@ -48,7 +65,7 @@ def implied_resolution_rate(years_open: np.ndarray, edges: np.ndarray = AGE_EDGE
     width = np.diff(edges)
     mid = (edges[:-1] + edges[1:]) / 2
     density = counts / width
-    with np.errstate(divide="ignore", invalid="ignore"):
+    with np.errstate(divide="ignore", invalid="ignore"):  # an empty bin would divide by zero; ignore the warning and leave a gap
         rate = -np.diff(np.log(density)) / np.diff(mid)
     return pd.DataFrame({
         "years_open_from": edges[:-1], "years_open_to": edges[1:], "open_cases": counts,
@@ -57,6 +74,8 @@ def implied_resolution_rate(years_open: np.ndarray, edges: np.ndarray = AGE_EDGE
     })
 
 
+# groupby("age_group") splits the table into one piece per group, so children and young adults are
+# summarized separately. .assign(...) adds a column without changing the original table.
 def snapshot_metrics(cases: pd.DataFrame, as_of: pd.Timestamp) -> tuple[pd.DataFrame, pd.DataFrame]:
     open_ = cases[cases["status"] != "delisted"].dropna(subset=["last_contact"])
     open_ = open_.assign(years_open=(as_of - open_["last_contact"]).dt.days / 365.25)
@@ -77,6 +96,9 @@ def snapshot_metrics(cases: pd.DataFrame, as_of: pd.Timestamp) -> tuple[pd.DataF
 
 # --------------------------------------------------------------------------- FBI NCIC flows
 
+# Accounting identity: records closed in a year = active at the start + entered - active at the end.
+# .shift(1) lines each year up with the previous year's value; it is only valid when the two years
+# are consecutive (2021 is missing).
 def ncic_flows() -> pd.DataFrame:
     """Juvenile NCIC records: closed in year t = active(t-1) + entered(t) - active(t), when both
     year-ends are published; average days open = 365 * active / entered."""
@@ -92,7 +114,7 @@ def ncic_flows() -> pd.DataFrame:
     return n[["year", "entries_u18", "active_u18_dec31", "closed_u18", "avg_days_open", "active_change_pct"]]
 
 
-def main():
+def main():  # run everything and write the three result tables
     RESULTS.mkdir(exist_ok=True)
     by_age, summary = snapshot_metrics(load_cases(), latest_run_date())
     by_age.to_csv(RESULTS / "open_cases_by_years_open.csv", index=False)

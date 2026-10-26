@@ -8,6 +8,20 @@ Output : report/insights.json (read by report/build_report.py, report/charts.py,
 
 Usage: python insights.py
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: turn the case table into the report's "insights": who goes missing (age, sex,
+# race and ethnicity compared with the population), when (season), how long cases stay open, where
+# (state rates), plus smaller patterns. Every figure is computed separately for children (0-17) and
+# young adults (18-25), and each group is compared with the Census population of the same ages.
+#
+# Structure: main() splits people into the two groups and calls compute() once per group;
+# compute() returns a dictionary of results, saved as report/insights.json for the report,
+# charts and dashboard.
+#
+# Python ideas: functions that return dictionaries, collections.Counter, statistics.median,
+# list comprehensions with conditions, tuples as dictionary keys (("Texas", "Black")).
+# ===================================================================================================
 import collections
 import json
 import re
@@ -15,9 +29,13 @@ import statistics
 
 from common import RACE_ORDER, ROOT, age_band, census, last_run_date, parse_date, read_csv, state_name
 
+# RECENT_FROM: population comparisons use cases from 2016 on, so a decades-old case is not compared
+# with today's population mix.
 COLLECTED = last_run_date()  # cases are "open" as of the latest collection run
 RECENT_FROM = 2016  # population comparisons use cases from the last ~10 years
 
+# Pattern pieces for spotting countries, digital clues (phones, social media) and foster care in the
+# free-text summaries. rf"..." is both raw (backslashes kept) and an f-string ({COUNTRIES} is inserted).
 COUNTRIES = ("Mexico|Guatemala|Honduras|El Salvador|Nicaragua|Costa Rica|Panama|Belize|Cuba|Haiti|"
              "Dominican Republic|Jamaica|Trinidad|Colombia|Venezuela|Ecuador|Peru|Bolivia|Brazil|Argentina|"
              "Chile|Paraguay|Uruguay|Canada|England|United Kingdom|Ireland|France|Germany|Italy|Spain|"
@@ -43,9 +61,13 @@ def age_of(p):
 
 # --------------------------------------------------------------------------- main
 
+# The two groups and their age ranges. Looping over this dict is what guarantees children and young
+# adults are always computed apart.
 GROUPS = {"child": (0, 17), "adult": (18, 25)}  # analyzed apart; never pooled
 
 
+# Build one simple row per open case (skipping cases already found), then compute the insights for
+# each group. census(lo, hi) supplies the population of exactly the same ages.
 def main():
     P = {p["person_key"]: p for p in read_csv("output/persons.csv")}
     C = {c["person_key"]: c for c in read_csv("output/circumstances.csv")}
@@ -65,6 +87,7 @@ def main():
     return out
 
 
+# All insights for one age group. I is the results dictionary; each numbered section adds to it.
 def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
     """All insights for one age group; population comparisons use the same ages (lo-hi)."""
     I = {"ages": [lo, hi]}
@@ -74,6 +97,7 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
 
     # 1. Age and sex -----------------------------------------------------------
     ages = collections.Counter((r["age"], r["sex"]) for r in rows if r["age"] is not None)
+    # Counter keyed by (age, sex) tuples; then one [age, female, male] row per age for the chart.
     I["age_sex"] = [[a, ages[(a, "female")], ages[(a, "male")]] for a in range(lo, hi + 1)]
     teen = [r for r in rows if r["band"] == "12-17"]
     I["peak_age"] = max(range(lo, hi + 1), key=lambda a: ages[(a, "female")] + ages[(a, "male")])
@@ -89,6 +113,9 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
         sub = [r for r in rows if r["type"] == t and r["sex"] in ("female", "male")]
         I["female_share_by_type"][t] = [sum(r["sex"] == "female" for r in sub), len(sub)]
 
+    # Over- or under-representation = (group's share of cases) / (group's share of the population).
+    # 1.0 means "in line with population"; 2.0 means twice the population share. Only cases with a
+    # recorded race count toward the shares.
     # 2. Race vs population (recent cases) -----------------------------------
     rc = collections.Counter()
     for r in recent:
@@ -109,6 +136,10 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
     I["hispanic_migration_related"] = [sum(bool(mig.search(r["text"])) for r in hisp), len(hisp)]
     # Cases come disproportionately from some states; compare each race with the population of the states
     # the cases come from (weighted by each state's share of known-race cases), not only with the nation.
+    # Geography check: cases are concentrated in a few states (TX, FL, TN, VA...) whose populations differ
+    # from the nation's. So we also compare each group with the population of the states the cases come
+    # from, each state weighted by its share of cases. If a ratio shrinks a lot, geography explains much
+    # of the gap (young-adult American Indian / Alaska Native: 4.7x -> 2.4x); if it holds, it does not.
     st_cases = collections.Counter()
     for r in recent:
         if r["race"]:
@@ -123,6 +154,8 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
                                 for k in RACE_ORDER]
     I["pop_group"] = pop_total
 
+    # Cases per 100,000 people of the same ages. These mostly reflect how actively each state posts cases
+    # publicly (e.g. Virginia to NCMEC, Tennessee to NamUs), so they are reporting rates, not risk rates.
     # 3. Per-capita by state (recent) ----------------------------------------
     sc = collections.Counter()
     for r in recent:
@@ -146,6 +179,10 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
     # comparing months; raw shares are kept as raw_shares.
     days = [30, 28.25, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
 
+    # Seasonality. Months have different lengths, so counts are divided by days in the month before
+    # comparing ("cases per day"); otherwise February always looks low. January 1 dates are dropped (often
+    # a placeholder for "unknown date") and so are the last 12 months (recent open cases pile up in the
+    # current month).
     def months(sub):
         m = collections.Counter(r["date"].month for r in sub if r["date"] and (r["date"].month, r["date"].day) != (1, 1)
                                 and (COLLECTED - r["date"]).days > 365)
@@ -161,6 +198,8 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
         shares, raw, tot = months(sub)
         I["season"][label] = {"shares": shares, "raw_shares": raw, "n": tot}
 
+    # Median years since last seen, by how they went missing. These describe cases STILL open: resolved
+    # cases have left the list, so open runaway cases look recent while abductions look old.
     # 5. How long cases stay open ---------------------------------------------
     yrs = [(COLLECTED - r["date"]).days / 365.25 for r in rows if r["date"]]
     I["years_open_median"] = statistics.median(yrs)
@@ -177,6 +216,7 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
         y = [(COLLECTED - r["date"]).days / 365.25 for r in rows if r["key"].startswith(src) and r["date"]]
         I["source_recent_share"][src] = [statistics.median(y), sum(v < 1 for v in y) / len(y), len(y)]
 
+    # Share of family-abduction records naming a foreign country, and which countries.
     # 6. Family abductions abroad ---------------------------------------------
     fam = [r for r in rows if r["type"] == "Family abduction"]
     cc = collections.Counter()
@@ -202,7 +242,7 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
         sub = [r for r in rows if r["date"] and lo <= r["date"].year < hi and len(r["text"]) > 60]
         I["digital"].append([lab, sum(bool(DIGITAL_RE.search(r["text"])) for r in sub), len(sub)])
 
-    # 10. Missing together -----------------------------------------------------
+    # 10. Missing together -----------------------------------------------------  # NCMEC posters that list another child who went missing at the same time
     sib = 0
     for r in rows:
         if r["key"].startswith("ncmec"):

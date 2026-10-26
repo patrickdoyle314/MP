@@ -63,6 +63,15 @@ exchange/             aggregate exchange with adjacent projects (see below)
 data/, output/        downloaded and generated data (not committed)
 ```
 
+## Reading the code
+
+Every Python and SQL file opens with a **HOW TO READ THIS FILE** block: what the file does for the project
+(business purpose), how it is laid out, and the Python ideas it uses. Comments through the code explain *why*
+each step exists (for example, why children and young adults are never pooled, or why counts under 5 are
+hidden) and point out Python, pandas and SQL techniques where they first appear. A suggested reading order
+for learning Python: `common.py` → `circumstances.py` → `insights.py` → `analysis/open_case_metrics.py`
+(pandas) → `sql/ncic_flows.sql` → `models/stock_flow_ncic.py` (SciPy) → `tests/test_sql.py` (pytest).
+
 ## Exchange with adjacent projects
 
 This project shares **aggregates only** with adjacent projects through the file contract in

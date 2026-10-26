@@ -2,10 +2,26 @@
 
 Usage: python circumstances.py output/persons.csv   (writes output/circumstances.csv)
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: answer "how did they go missing, where were they, what were they doing?" for
+# every case, by matching keywords in the public case summary. Results go to output/circumstances.csv
+# and feed the report's "how they went missing" tables.
+#
+# Important limits: keyword rules are a first pass, not a judgement. Most summaries are one line, so
+# "Not stated" is the largest group; NCMEC's official case type, when present, overrides our guess.
+#
+# Python ideas: lists of (label, pattern) pairs as editable rule tables, regular expressions,
+# generator expressions, next() to stop at the first match, collections.Counter for tallies.
+# ===================================================================================================
 import csv, collections, json, re, sys, random
 
+# sys.argv[1] is the first command-line argument (the persons.csv path). Each row becomes a dict.
 P = list(csv.DictReader(open(sys.argv[1], encoding="utf-8-sig")))
 
+# Rule tables. Each entry is (label shown in reports, pattern that signals it). To change what counts
+# as, say, a family abduction, edit the pattern here; nothing else in the code needs to change.
+# The order of TYPE matters: the first pattern that matches decides the case's type.
 TYPE = [  # first match wins, most specific first
     ("Family abduction", r"\b(?:(?:abduct|kidnap)\w*[^.]{0,60}\b(?:mother|father|parent|biological|custod\w*)\b|(?:abducted|kidnapped|taken) by (?:her|his|their) (?:biological |non-?custodial )?(?:mother|father|parent|mom|dad|grandmother|grandfather|aunt|uncle|step\w+)|non-?custodial|custodial interference|parental (?:abduction|kidnapping)|taken by (?:her|his|their) (?:mother|father|parent|mom|dad)|(?:mother|father|parent) (?:took|fled|absconded)|in the company of (?:her|his|their) (?:biological |non-?custodial )?(?:mother|father|parent|mom|dad)|violation of (?:a )?custody)\b"),
     ("Non-family abduction", r"\b(?:abduct\w*|kidnap\w*|forced (?:into|her|him)|taken by (?:an? )?(?:unknown|stranger|man|woman|male|female)|pulled (?:her|him) into|lured)\b"),
@@ -43,16 +59,21 @@ ACTIVITY = [
 BOILERPLATE = re.compile(r"^\W*\S+(?: \S+){0,3} (?:was|were) last seen (?:on|in) [^.]{0,40}\.?\W*$", re.I)
 
 # Compile every pattern once (re.search with a string re-looks it up on every call)
+# Compile every pattern once up front. A generator expression ( ... for table in ...) builds the three
+# compiled tables and unpacks them back into the same three names.
 TYPE, PLACE, ACTIVITY = ([(name, re.compile(rx, re.I)) for name, rx in table] for table in (TYPE, PLACE, ACTIVITY))
 
 
-def classify(text, table):
+def classify(text, table):  # every label whose pattern appears (a case can mention several places)
     return [name for name, rx in table if rx.search(text)] if text else []
 
 
+# next(generator, None) returns the first label that matches, or None. It stops searching as soon as
+# it finds one, which is faster than checking every pattern.
 def first_match(text, table):
     return next((name for name, rx in table if rx.search(text)), None) if text else None
 
+# Classify each person. NCMEC's official case type (when it has one) beats our keyword guess.
 rows = []
 for p in P:
     t = re.sub(r"\s+", " ", p["circumstances"].replace("[NCMEC]", " ")).strip()
@@ -91,7 +112,7 @@ out["abd_place"] = collections.Counter(x for r in abd for x in r["place"]).most_
 out["abd_act"] = collections.Counter(x for r in abd for x in r["act"]).most_common()
 out["abd_n"] = len(abd)
 
-def pct(c, n): return ", ".join(f"{k} {v} ({100*v/n:.0f}%)" for k, v in c)
+def pct(c, n): return ", ".join(f"{k} {v} ({100*v/n:.0f}%)" for k, v in c)  # one-line function: format counts as 'label count (share%)' for the printout
 print("persons", out["n"], "| any place/activity stated:", sum(bool(r["place"] or r["act"]) for r in rows))
 print("TYPE all:", pct(out["type_all"], out["n"]))
 for band in ("0-11", "12-17", "18-25"):
@@ -105,6 +126,8 @@ for label in ("Non-family abduction", "Family abduction", "Outdoors / water (los
     for r in random.sample(sm, min(4, len(sm))):
         print(f"[{label}] {r['place'][:2]} {r['act'][:2]} | {r['text'][:200]}")
 
+# Write one row per person with their age group, so every later step can keep children and young
+# adults apart.
 with open("output/circumstances.csv", "w", newline="", encoding="utf-8-sig") as f:
     w = csv.writer(f)
     w.writerow(["person_key", "age_group", "first_name", "last_name", "age_missing", "last_contact_date",

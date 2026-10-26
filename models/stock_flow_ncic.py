@@ -16,6 +16,19 @@ Backtest: fit on years up to Y-1, predict Y from Y's entries, for Y = 2020, 2022
 
 Juveniles only (under 18 at entry, as the FBI reports them). Usage: python models/stock_flow_ncic.py
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: explain the national picture. Each year the FBI publishes how many missing-person
+# records for juveniles were entered and how many were still open on December 31. Most close within
+# weeks, but a small group stays open for years. This model estimates those two groups from the yearly
+# totals, and tests whether it can forecast next year better than simple rules (it can't).
+#
+# The model is a "stock and flow": records flow in (entries) and out (closures) of a stock (active
+# records). It is the linear form of the predator-prey models in paper/.
+#
+# Python ideas: NumPy, SciPy's least_squares (fitting by minimizing errors), multi-start optimization,
+# working on the log scale, backtesting (train on earlier years, predict a later one).
+# ===================================================================================================
 import csv
 import json
 import math
@@ -27,7 +40,7 @@ from scipy.optimize import least_squares
 HERE = Path(__file__).resolve().parent
 
 
-def load():
+def load():  # read the yearly FBI figures; the missing 2021 entries are filled by averaging 2020 and 2022
     rows = list(csv.DictReader(open(HERE / "ncic_juvenile_by_year.csv", encoding="utf-8")))
     years = [int(r["year"]) for r in rows]
     ent = {int(r["year"]): float(r["entries_u18"]) for r in rows if r["entries_u18"]}
@@ -38,6 +51,9 @@ def load():
     return years, ent, act
 
 
+# Given parameters theta, rebuild active records year by year. theta holds logarithms (exp() turns
+# them back), which keeps every rate positive while the optimizer searches. Each slow group loses a
+# share exp(-c) of last year's stock and gains its share of this year's entries.
 def simulate(theta, k, years, ent):
     """theta = [log a, (logit p_k, log c_k)...]; slow stocks start at steady state for the first year."""
     a = math.exp(theta[0])
@@ -50,12 +66,16 @@ def simulate(theta, k, years, ent):
     return out, a, comps
 
 
+# The error surface has flat stretches, so one starting guess can get stuck. Trying several random
+# starts and keeping the best fit ("multi-start") makes the answer reliable.
 STARTS = 12  # random restarts per fit; 40 gave the same optima on this data (checked 2026-10-25)
 
 
 WARM_STARTS = 3  # random restarts added to a warm start (the previous backtest year's fit)
 
 
+# least_squares adjusts the parameters to make the model's log(predicted / actual) as close to zero as
+# possible across the fitting years. Comparing logs treats a 10% miss the same in big and small years.
 def fit(k, years, ent, act, fit_years, warm=None):
     """Best of several least-squares fits; `warm` (earlier data's fit) is tried first, with fewer random starts."""
     best = None
@@ -71,7 +91,7 @@ def fit(k, years, ent, act, fit_years, warm=None):
     return best
 
 
-def chart(years, ent, act, pred, a, obs):
+def chart(years, ent, act, pred, a, obs):  # the stacked bar chart in the report: fast vs slow group, FBI actuals as dots
     """Active under-18 records: FBI figures vs the one-slow-compartment fit, split fast / slow."""
     import matplotlib
     matplotlib.use("Agg")
@@ -110,6 +130,8 @@ def main():
     R["mean_days_open"] = {y: round(365 * act[y] / ent[y], 1) for y in obs}
 
     # Full-sample fits
+    # Fit three versions: k=0 (one average duration), k=1 (plus one slow group), k=2 (two slow groups).
+    # AICc scores fit against complexity; lower is better. With only ten yearly points, simpler wins.
     fits = {}
     for k in (0, 1, 2):
         if k == 0:  # a only
@@ -135,9 +157,13 @@ def main():
     R["fits"] = fits
 
     # Backtest: one-year-ahead, refitting on earlier years only
+    # Backtest: for each test year, fit using only EARLIER years, then predict that year. Comparing the
+    # models' errors with simple rules ("same as last year") shows whether the model really forecasts.
     test_years = [2020, 2022, 2023, 2024, 2025]
     # k2 is not backtested: on yearly totals it always collapses onto k1 (see fits["2"])
     bt = {name: [] for name in ("persistence", "ratio", "k0", "k1")}
+    # Speed-up: each backtest year starts from the previous (earlier) year's fit, so it never peeks at
+    # later data.
     warm = {}
     for y in test_years:
         prev = max(t for t in obs if t < y)

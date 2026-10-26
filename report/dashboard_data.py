@@ -5,6 +5,15 @@ pools them. Reads report/facts.json, report/insights.json, models/*.json and out
 
 Usage: python report/dashboard_data.py   (after make_facts.py, insights.py, models/stock_flow_ncic.py)
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: write the eight small data files behind the interactive Missing Children
+# Dashboard (report/dashboard/*.json). Aggregate counts only, no names. Every row carries a "group"
+# column ("child" or "adult") so the dashboard shows one group at a time and never pools them.
+#
+# Python ideas: building a dict of lists (one list per dataset), appending one dict per row, writing
+# JSON with ensure_ascii=False so characters like "–" stay readable.
+# ===================================================================================================
 import csv
 import json
 from pathlib import Path
@@ -14,7 +23,7 @@ OUT = ROOT / "report/dashboard"
 F = json.loads((ROOT / "report/facts.json").read_text("utf-8"))
 INS = json.loads((ROOT / "report/insights.json").read_text("utf-8"))
 SF = json.loads((ROOT / "models/stock_flow_results.json").read_text("utf-8"))
-GROUPS = {"child": "Children (under 18)", "adult": "Young adults (18–25)"}
+GROUPS = {"child": "Children (under 18)", "adult": "Young adults (18–25)"}  # group code -> label shown on the dashboard
 LABEL = {
     "Not stated": "Not stated in the record",
     "Runaway / left voluntarily": "Ran away / left on their own",
@@ -28,16 +37,17 @@ RACES = ["Black", "Hispanic", "American Indian / Alaska Native", "White", "Asian
 
 
 def main():
-    found = {g: 0 for g in GROUPS}
+    found = {g: 0 for g in GROUPS}  # cases found since weekly collection began, per group
     for p in csv.DictReader(open(ROOT / "output/persons.csv", encoding="utf-8-sig")):
         if p["status"] == "delisted" and p["age_group"] in found:
             found[p["age_group"]] += 1
+    # One empty list per dataset; each loop below appends rows to the right list.
     D = {k: [] for k in ("summary", "how_missing", "age_sex", "race", "years_open", "season", "states", "ncic")}
     for g, label in GROUPS.items():
         Fg, Ig = F[g], INS[g]
         stated = [(k, v) for k, v in Fg["type"] if k != "Not stated"]
         race = {r[0]: r for r in Ig["race"]}
-        top_race = max(RACES, key=lambda r: race[r][4])
+        top_race = max(RACES, key=lambda r: race[r][4])  # the race/ethnicity with the highest cases-to-population ratio
         D["summary"].append({
             "group": g, "label": label, "ages": f"{Ig['ages'][0]}–{Ig['ages'][1]}", "collected": F["collected"],
             "open_cases": Fg["n"], "not_stated_share": round(dict(Fg["type"]).get("Not stated", 0) / Fg["n"], 4),
@@ -51,6 +61,8 @@ def main():
         for a, f, m in Ig["age_sex"]:
             D["age_sex"].append({"group": g, "age": a, "female": f, "male": m})
         for r in RACES:
+            # Also store the comparison with the states the cases come from, so the dashboard can show both
+            # ratios.
             adj = {x[0]: x for x in Ig["race_state_adjusted"]}[r]
             D["race"].append({"group": g, "race": r, "case_share": round(race[r][2], 4),
                               "pop_share": round(race[r][3], 4), "ratio": round(race[r][4], 2),
@@ -69,7 +81,7 @@ def main():
             D["states"].append({"group": g, "state": st, "cases": n, "rate_per_100k": round(rate, 1),
                                 "from_namus": split.get(st, {}).get("namus", 0),
                                 "from_ncmec": split.get(st, {}).get("ncmec", 0)})
-    rows = list(csv.DictReader(open(ROOT / "models/ncic_juvenile_by_year.csv", encoding="utf-8")))
+    rows = list(csv.DictReader(open(ROOT / "models/ncic_juvenile_by_year.csv", encoding="utf-8")))  # FBI yearly figures with the model's fast/slow split, for the national chart
     fit = SF["fits"]["1"]
     a_years = fit["params"]["a_days"] / 365
     for r in rows:
@@ -82,7 +94,7 @@ def main():
                           "model_fast": fast if fitted else None,
                           "model_slow": (fitted - fast) if fitted else None})
     OUT.mkdir(parents=True, exist_ok=True)
-    for name, data in D.items():
+    for name, data in D.items():  # one JSON file per dataset
         (OUT / f"{name}.json").write_text(json.dumps(data, indent=1, ensure_ascii=False), "utf-8")
         print(f"{name}.json: {len(data)} rows")
 

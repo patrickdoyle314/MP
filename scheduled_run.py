@@ -9,6 +9,15 @@ data/logs/runs.csv. A lock file stops two runs overlapping.
 
 Usage: python scheduled_run.py [--peer <peer outbox folder>]
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: this is what Windows Task Scheduler runs every Sunday at 10:00 AM. It collects
+# fresh data, refreshes the derived files, and keeps a log, so "found" cases are detected week after
+# week without anyone remembering to do it.
+#
+# Python ideas: subprocess (run another program and wait for it), a lock file so two runs never
+# overlap, writing a CSV log one line per run, try/finally for clean-up.
+# ===================================================================================================
 import argparse
 import csv
 import datetime as dt
@@ -22,9 +31,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 LOGS = ROOT / "data" / "logs"
 LOCK = LOGS / "run.lock"
+# If a lock file is older than this, the previous run must have crashed; it is safe to start anyway.
 STALE_LOCK_HOURS = 6
 
 
+# Run one script with the same Python that is running this file (sys.executable), sending all of its
+# output into the log file, and report its exit code (0 means success).
 def step(name, args, log):
     log.write(f"\n===== {name}: {' '.join(args)}  ({dt.datetime.now():%Y-%m-%d %H:%M:%S})\n")
     log.flush()
@@ -35,6 +47,9 @@ def step(name, args, log):
     return rc
 
 
+# The run itself: take the lock, run collect -> circumstances -> exchange export, then append one
+# summary line (cases listed, new and found per source) to data/logs/runs.csv. The `finally` block
+# removes the lock even if something fails, so next week's run is never blocked.
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--peer", help="a peer project's exchange/outbox folder, passed to the exchange export")

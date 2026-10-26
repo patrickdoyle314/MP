@@ -3,6 +3,15 @@
 Each check prints the paper's claim next to what the equations actually give.
 Usage: python paper/verify_adam2009.py
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: check the math in Adam, Sokolowski & Banks (2009), the predator-prey insurgency
+# paper studied in paper/, by recomputing every result. Each check prints the paper's claim next to
+# what the equations actually give.
+#
+# Python ideas: NumPy for numbers, SymPy for algebra with symbols (it re-derives equations), SciPy's
+# solve_ivp to solve differential equations numerically, mpmath for special functions.
+# ===================================================================================================
 import numpy as np
 import sympy as sp
 from mpmath import hyp1f1, hyperu, mp
@@ -40,7 +49,7 @@ print(f"eigenvalues of (15) with |a-c| = 2 sqrt(bd), bd = {bd:.4f}: {np.round(np
 print(line, "\n3. Section 9: decoupled system (d = 0)")
 print(f"with d = 0, I(t) = I0 e^(ct): I(10)/I0 = e^(10c) = {np.exp(10*c):.1f}  (data: 38,100/4,000 = {38100/4000:.2f})")
 I0 = 0.001  # I/S ~ 0.001 with S0 = 1; reproduces Fig. 4
-def S27(t, b, c_=c):
+def S27(t, b, c_=c):  # the paper's Eq. (27): the general population under the decoupled model
     return np.exp(a * t) + b * I0 / (c_ - a) * (np.exp(a * t) - np.exp(c_ * t))
 for b in (0.5, 1.0, 1.5):
     print(f"  b={b}: S(10) from (27) = {S27(10, b):.3f}   (Fig. 4 shows ~{ {0.5: 1.12, 1.0: 1.03, 1.5: 0.945}[b] })")
@@ -52,10 +61,10 @@ for b in (0.5, 1.0, 1.5):
 print("\n  Eq. (28) vs direct integration for t > 10 (b = 1, c = 0.431):")
 b = 1.0
 S10, I10 = S27(10, b), I0 * np.exp(10 * c)
-def S28(t):
+def S28(t):  # the paper's Eq. (28) for after 2003, exactly as printed (it contains an error)
     tau = t - 10
     return S10 * (np.exp(at * tau) - b * I0 / (ct + at) * (np.exp(at * tau) - np.exp(-ct * tau)))
-def S_correct(t):
+def S_correct(t):  # the corrected continuation; it matches the numerical solution below
     tau = t - 10
     return S10 * np.exp(at * tau) - b * I10 / (ct + at) * (np.exp(at * tau) - np.exp(-ct * tau))
 sol = solve_ivp(lambda t, y: [at * y[0] - b * y[1], -ct * y[1]], (10, 20), [S10, I10],
@@ -91,6 +100,7 @@ k = complex(k)
 # Correct reduction: with x = xi = e^{-wt}, y = x^k eta, eta solves Kummer's equation in z = -D~ x
 # with parameters a_K = k + C~/D~, b_K = 2k + A~ (no exponential prefactor).
 aK, bK = k + Ct / Dt, 2 * k + At
+# The corrected closed-form solution using Kummer functions (hyp1f1 = M, hyperu = U).
 def I_correct(tt, c1=1.0, c2=0.0):
     x = mp.e ** (-pw * tt)
     z = -Dt * x
@@ -101,6 +111,8 @@ aP = (k * Dt**2 + At * (Dt**2 - Dt) / 2 + Ct) / Dt**2
 def I_paper(tt):
     x = mp.e ** (-pw * tt)
     return complex(x ** k * mp.e ** (h * x) * hyp1f1(aP, bK, -Dt**2 * x))
+# Plug a candidate solution into the differential equation using finite differences. A true solution
+# leaves a residual near zero (about 1e-8 here); the paper's formula leaves about 1e-3.
 def residual(fun, tt, eps=1e-4):
     f0, fp, fm = fun(tt), fun(tt + eps), fun(tt - eps)
     d1, d2 = (fp - fm) / (2 * eps), (fp - 2 * f0 + fm) / eps**2

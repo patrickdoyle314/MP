@@ -2,6 +2,20 @@
 
 Usage: python report/build_report.py
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: build the Word report "Missing Children in the United States" from the analysis
+# results (facts.json, insights.json, the model results and the chart images). Part 1 covers children,
+# Part 2 young adults; every number is read from the data files, so rebuilding after new data updates
+# every figure, table and sentence.
+#
+# Layout of this file: (1) sources list and labels, (2) low-level helpers that write Word formatting,
+# (3) document setup (page size, fonts), (4) the content, section by section.
+#
+# Python ideas: the python-docx library, small helper functions that hide repetitive formatting,
+# f-strings that put live numbers into sentences, building a list of "parts" (plain text, bold text,
+# citations, links) that one function knows how to write.
+# ===================================================================================================
 import json
 from pathlib import Path
 
@@ -30,6 +44,8 @@ def pct(n, d):
     return f"{round(100 * n / d)}%"
 
 
+# The numbered source list. Each sentence in the report cites these by number, e.g. [7], so every
+# claim can be traced to where it came from.
 SOURCES = [
     ("NamUs (National Missing and Unidentified Persons System), U.S. Department of Justice, National "
      "Institute of Justice. Missing Persons search and public case records.",
@@ -60,7 +76,7 @@ SOURCES = [
      "Accessed October 22, 2026."),
 ]
 
-TYPE_LABEL = {
+TYPE_LABEL = {  # internal category names -> plain-language labels shown to readers
     "Not stated": "Not stated in the record",
     "Runaway / left voluntarily": "Ran away / left on their own",
     "Outdoors / water (lost, drowning, accident)": "Lost, drowned or accident outdoors",
@@ -79,6 +95,9 @@ NCMEC_LABEL = {
 doc = Document()
 
 
+# Word files are XML underneath. A few formatting features (shading, borders, hyperlinks) are not in
+# python-docx's friendly API, so these helpers build the XML elements directly. **attrs collects any
+# keyword arguments into a dict, so _el("w:shd", fill="E8EEF5") works for any attribute.
 def _el(tag, **attrs):
     e = OxmlElement(tag)
     for k, v in attrs.items():
@@ -115,6 +134,9 @@ def add_link(p, text, url, size=11):
     p._p.append(h)
 
 
+# Write a paragraph from a list of parts: plain strings, ("b", text) for bold, ("cite", [7]) for a
+# citation, ("link", text, url) for a hyperlink. Writing content as data like this keeps the content
+# section readable.
 def fill(p, parts, size=11):
     """parts: str | ("b", text) | ("i", text) | ("cite", [n..]) | ("link", text, url)."""
     for part in parts:
@@ -213,6 +235,8 @@ def fixed_layout(table, widths):
             c.width = Twips(w)
 
 
+# One function draws every table the same way: navy header row, light banding, numbers right-aligned.
+# Widths are in "twips" (1/1440 inch), the unit Word uses.
 def table(headers, rows, widths, numeric=()):
     t = doc.add_table(rows=1 + len(rows), cols=len(headers))
     t.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -243,7 +267,7 @@ def table(headers, rows, widths, numeric=()):
     return t
 
 
-def callout(title, paragraphs):
+def callout(title, paragraphs):  # a shaded box for context notes (a one-cell table with a thick left border)
     t = doc.add_table(rows=1, cols=1)
     fixed_layout(t, [W])
     cell_margins(t, 140, 100, 220, 220)
@@ -292,7 +316,7 @@ fp._p.append(fld)
 zoom = doc.settings.element.find(qn("w:zoom"))
 if zoom is not None:
     zoom.set(qn("w:percent"), "100")
-doc.core_properties.title = "Missing Children in the United States"
+doc.core_properties.title = "Missing Children in the United States"  # metadata Word shows under File > Info
 doc.core_properties.author = "Missing persons research project"
 
 # --------------------------------------------------------------------------- content
@@ -322,6 +346,8 @@ def pf(v):
     return f"{round(100 * v)}%"
 
 
+# Insert a chart image and a numbered caption. FIG is a one-item list so the function can update the
+# running figure number (a list can be changed inside a function; a plain number could not).
 def figure(name, caption, cites):
     FIG[0] += 1
     p = doc.add_paragraph()
@@ -335,7 +361,7 @@ def figure(name, caption, cites):
     spacing(c, after=12)
 
 
-def type_table(G, label="Share"):
+def type_table(G, label="Share"):  # the 'how they went missing' table for one age group
     table(["How they went missing", "Cases", label], [[tl(k), fmt(v), pct(v, G["n"])] for k, v in G["type"]],
           [5160, 2000, 2200], numeric=(1, 2))
 
@@ -358,7 +384,7 @@ def state_table(I, ages):
            for s, c, _, r in show], [2700, 2200, 2400, 2060], numeric=(1, 2))
 
 
-def nm(i):
+def nm(i):  # link to a case's public NamUs page by case number (never by name)
     return [("link", f"NamUs MP{i}", f"https://www.namus.gov/MissingPersons/Case#/{i}")]
 
 
@@ -399,6 +425,8 @@ pbdr.append(_el("w:bottom", **{"w:val": "single", "w:sz": 8, "w:space": 6, "w:co
 p._p.get_or_add_pPr().append(pbdr)
 spacing(p, after=14)
 
+# The report's first box states the rules readers need: children and young adults are never pooled,
+# and counts are open cases on the latest collection date.
 callout("How to read this report", [
     [("b", "Children and young adults are never pooled. "),
      "Every figure in Part 1 uses only children: people under 18 for their whole recorded age range. Young "
@@ -463,6 +491,7 @@ table(["Group", "Open cases", "Rule"], [
 note(f"NCMEC’s search also returns {F['ncmec_unidentified_removed']} posters for unidentified deceased children; "
      "they are excluded because they are not missing-person cases.", (2, 7))
 
+# Part 1: every figure here comes from children only (under 18), compared with the population aged 0-17.
 # ===================================================================== PART 1: CHILDREN
 h1("Part 1: Children (under 18)")
 h2("How children went missing")
@@ -512,6 +541,9 @@ para(["NCMEC’s research on abductions and attempts matches this: attempts happ
       "children are playing, walking or riding bikes, and are more common going to or from school.", ("cite", [6])])
 
 # Insights about children
+# Each numbered insight: a heading that states the finding, one or two paragraphs with the numbers
+# (read from insights.json), and a chart. Text that reads numbers off the data stays correct when the
+# data changes.
 h1("Insights about children")
 para([f"Each insight uses only the {fmt(IC['n_all'])} open child cases and, for comparisons, the Census "
       "population aged 0 to 17.", ("cite", [7, 8])])
@@ -669,6 +701,8 @@ if ER:
             "It is one short window, but it shows the same fast and slow groups as the national model.",
             ("cite", [2, 7])])
 
+# Part 2: young adults (18-25), with their own figures, compared with the population aged 18-25.
+# They are context for the children's figures, not part of them.
 # ===================================================================== PART 2: YOUNG ADULTS
 h1("Part 2: Young adults (18–25)")
 para([f"These {fmt(FA['n'])} open cases are kept apart from the children in Part 1 and compared with the "
@@ -775,5 +809,5 @@ p = doc.add_paragraph()
 style_run(p.add_run("If you have information about a missing child, contact the agency listed on the case "
                     "record or NCMEC at 1-800-THE-LOST (1-800-843-5678)."), 10, italic=True, color=GREY)
 
-doc.save(OUT)
+doc.save(OUT)  # write the finished .docx file
 print("wrote", OUT)

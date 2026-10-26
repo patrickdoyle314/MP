@@ -1,4 +1,12 @@
 """SQL statements must agree with the same calculation in pandas."""
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: automatic checks (run with `pytest`). They prove the SQL statements and the
+# pandas code compute the same numbers, so either can be trusted.
+#
+# Python ideas: pytest test functions (any function named test_...), assert statements, a fixture
+# (shared setup built once and handed to tests), np.allclose for comparing decimals.
+# ===================================================================================================
 from pathlib import Path
 
 import numpy as np
@@ -12,7 +20,7 @@ from sql.practice import build_practice_db
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def test_ncic_sql_matches_pandas():
+def test_ncic_sql_matches_pandas():  # the SQL and pandas versions of the FBI flows must agree year by year
     sql = run_sql.run(ROOT / "sql/ncic_flows.sql").set_index("year")
     pdf = open_case_metrics.ncic_flows().set_index("year")
     assert list(sql.index) == list(pdf.index)
@@ -22,14 +30,14 @@ def test_ncic_sql_matches_pandas():
     assert np.allclose(sql["avg_days_open"], pdf["avg_days_open"])
 
 
-def test_ncic_closed_is_flow_identity():
+def test_ncic_closed_is_flow_identity():  # closed = active at start + entered - active at end, checked for 2025
     sql = run_sql.run(ROOT / "sql/ncic_flows.sql")
     row = sql[sql.year == 2025].iloc[0]
     prev = sql[sql.year == 2024].iloc[0]
     assert row.closed_u18 == prev.active_u18_dec31 + row.entries_u18 - row.active_u18_dec31
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="module")  # build the practice database once, in a temporary folder, for the tests below
 def practice_db(tmp_path_factory):
     import duckdb
     db = tmp_path_factory.mktemp("practice") / "practice.duckdb"
@@ -43,6 +51,7 @@ def practice_db(tmp_path_factory):
     return db, tables
 
 
+# Recompute the SQL query's joins and totals with pandas merges and groupby; every row must match.
 def test_practice_query_matches_pandas(practice_db):
     db, t = practice_db
     sql = run_sql.run(ROOT / "sql/practice/caseload_by_region.sql", db)

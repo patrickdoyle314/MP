@@ -5,23 +5,38 @@ pooled. Only cases still open on the latest collection date are counted.
 
 Usage: python report/make_facts.py
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: summarize the case tables into report/facts.json: counts by how people went
+# missing, by age band, places and activities mentioned, timeline counts, cases found so far and the
+# early-resolution figures. Children and young adults are summarized separately; only cases still open
+# on the latest collection date are counted.
+#
+# Python ideas: functions that return dicts, collections.Counter(...).most_common(), dict lookups with
+# .get(), generator expressions inside sum(), reading shared helpers from common.py.
+# ===================================================================================================
 import collections
 import datetime as dt
 import json
 import sys
 from pathlib import Path
 
+# This script lives in report/, so we add the project root to Python's search path before importing
+# the shared helpers in common.py.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import ROOT, age_band, disk_cached, load_state, read_csv  # noqa: E402
 
 STATE = load_state()
 LAST_RUN = dt.date.fromisoformat(STATE["runs"][-1]["date"])
-GROUP_BANDS = {"child": ("0-11", "12-17"), "adult": ("18-25",)}
+GROUP_BANDS = {"child": ("0-11", "12-17"), "adult": ("18-25",)}  # which age bands belong to each group (children are split 0-11 and 12-17)
 
 
 band = age_band
 
 
+# NCMEC's search also returns posters for unidentified deceased children. They are not missing-person
+# cases, so they are counted (to report them) and excluded. The count is cached because it means opening
+# 3,700 files.
 def unidentified_posters(files):
     """NCMEC posters for unidentified deceased children (not missing-person cases); counted once per change."""
     return disk_cached("ncmec_unidentified", files, lambda: sum(
@@ -32,6 +47,7 @@ def split(s):
     return [x for x in s.split("; ") if x]
 
 
+# All summary figures for one age group. P = persons, C = circumstances, E = events.
 def summarize(P, C, E, group):
     C = [c for c in C if c["age_group"] == group]
     keys = {c["person_key"] for c in C}
@@ -75,6 +91,9 @@ def summarize(P, C, E, group):
     return G
 
 
+# First real outcome data: of NCMEC child cases listed at the previous weekly run, what share were found
+# by the latest run, grouped by how long the case had been open. next(...) picks the first band whose
+# upper limit fits.
 def early_resolution(P):
     """Children on NCMEC at the previous run: share found by the latest run, by how long the case had been open."""
     runs = [r["date"] for r in STATE["runs"]]
@@ -99,7 +118,7 @@ def early_resolution(P):
             "bands": [[b, found[b], at_risk[b]] for b, _ in bands]}
 
 
-def main():
+def main():  # load the tables, keep open cases, summarize each group, write facts.json
     P = {p["person_key"]: p for p in read_csv("output/persons.csv")}
     open_keys = {k for k, p in P.items() if p["status"] != "delisted"}
     C = [c for c in read_csv("output/circumstances.csv") if c["person_key"] in open_keys]

@@ -10,6 +10,14 @@ Usage:
   python pipeline.py --from insights     # start at a step
   python pipeline.py --only charts report
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: one command to rebuild every output (data tables, report, charts, dashboard data)
+# in the right order, with a timing for each step, so a refresh is quick and repeatable.
+#
+# Python ideas: a list of tuples as a simple "recipe", runpy (run another script from inside Python),
+# try/finally to always restore settings, sys.argv (the command-line arguments a script sees).
+# ===================================================================================================
 import argparse
 import os
 import runpy
@@ -21,6 +29,8 @@ import common
 ROOT = common.ROOT
 PEER = ROOT.parent / "UC-Placement" / "exchange" / "outbox"
 
+# The recipe. Each step is (short name, script, arguments). Order matters: every step reads files that
+# earlier steps wrote (for example, the report needs the insights).
 STEPS = [  # (name, script, arguments); order matters: each step reads what earlier ones wrote
     ("rebuild", "collect.py", ["--offline"]),
     ("circumstances", "circumstances.py", ["output/persons.csv"]),
@@ -35,6 +45,9 @@ STEPS = [  # (name, script, arguments); order matters: each step reads what earl
 ]
 
 
+# runpy.run_path runs a script exactly as "python script.py" would, but inside this same process, so
+# heavy libraries (pandas, matplotlib, SciPy) load only once for the whole rebuild. We temporarily set
+# sys.argv (the script's command-line arguments) and restore everything in `finally`.
 def run_step(script, args, quiet):
     """Run one script as __main__; returns its exit code."""
     common.read_csv.cache_clear()  # never hand a step a table an earlier step has since rewritten
@@ -57,6 +70,8 @@ def run_step(script, args, quiet):
         sys.argv, sys.path[:] = old_argv, old_path
 
 
+# Parse options, pick the steps to run, then run them in order and stop at the first failure.
+# time.perf_counter() is a precise stopwatch for timing each step.
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--collect", action="store_true", help="collect new data from NamUs and NCMEC first")

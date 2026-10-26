@@ -5,12 +5,20 @@ the population reference series uses a neutral grey because it is a baseline, no
 
 Usage: python report/charts.py
 """
+# ===================================================================================================
+# HOW TO READ THIS FILE
+# Business purpose: draw the report's charts as PNG images, once for children and once for young
+# adults (file names end in _child / _adult), from report/insights.json.
+#
+# Python ideas: matplotlib (fig = the image, ax = the plotting area), a draw() function called once per
+# group, small helper functions for a consistent look, f-strings for labels.
+# ===================================================================================================
 import json
 from pathlib import Path
 
 import matplotlib
 
-matplotlib.use("Agg")
+matplotlib.use("Agg")  # 'Agg' draws to files without opening windows (needed for scheduled runs)
 import matplotlib.pyplot as plt  # noqa: E402
 
 HERE = Path(__file__).resolve().parent
@@ -28,7 +36,7 @@ plt.rcParams.update({
 W = 6.5  # inches: page text width
 
 
-def frame(ax, grid_axis="y"):
+def frame(ax, grid_axis="y"):  # house style: no top/right borders, faint grid lines behind the data
     for s in ("top", "right"):
         ax.spines[s].set_visible(False)
     ax.spines["left" if grid_axis == "x" else "bottom"].set_color(GRID)
@@ -43,7 +51,7 @@ def save(fig, name):
     plt.close(fig)
 
 
-def hbar(ax, labels, values, color=BLUE, fmt="{:.0f}", xmax=None):
+def hbar(ax, labels, values, color=BLUE, fmt="{:.0f}", xmax=None):  # a horizontal bar chart with the value written at the end of each bar
     y = range(len(labels))
     ax.barh(list(y), values, height=0.58, color=color, edgecolor="white", linewidth=1.5)
     ax.set_yticks(list(y), labels)
@@ -56,6 +64,8 @@ def hbar(ax, labels, values, color=BLUE, fmt="{:.0f}", xmax=None):
     frame(ax, "x")
 
 
+# Draw every chart for one age group. I is that group's results from insights.json; sfx is the file
+# name ending (_child or _adult). Each chart is created, labelled, styled and saved.
 def draw(I, sfx):
     """All charts for one age group; files end in sfx (e.g. _child)."""
     # 1. Age at disappearance, by sex --------------------------------------------
@@ -169,6 +179,6 @@ def draw(I, sfx):
     save(fig, "countries" + sfx)
 
 
-for group in ("child", "adult"):
+for group in ("child", "adult"):  # the same charts, drawn separately for each group
     draw(ALL[group], f"_{group}")
 print("charts written to", OUT)

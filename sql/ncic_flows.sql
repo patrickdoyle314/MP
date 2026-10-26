@@ -7,15 +7,21 @@
 -- Source: models/ncic_juvenile_by_year.csv (yearly FBI reports; 2021 not published online).
 -- Run: python sql/run_sql.py sql/ncic_flows.sql
 
+-- HOW TO READ THIS QUERY
+-- A CTE ("WITH name AS (...)") is a named, temporary result you can query like a table. It keeps a
+-- long query readable: first prepare the yearly rows, then compute from them.
 WITH yearly AS (
     SELECT
         year,
         entries_u18,
         active_u18_dec31,
+        -- Window function: LAG(x) OVER (ORDER BY year) looks back one row, i.e. at the previous published
+        -- year,
+        -- without collapsing rows the way GROUP BY would.
         LAG(year)             OVER (ORDER BY year) AS prev_year,
         LAG(active_u18_dec31) OVER (ORDER BY year) AS prev_active
     FROM read_csv('models/ncic_juvenile_by_year.csv', header = true)
-    WHERE entries_u18 IS NOT NULL
+    WHERE entries_u18 IS NOT NULL  -- skip 2021, which has no published figures
 )
 SELECT
     year,
@@ -25,6 +31,8 @@ SELECT
     CASE WHEN year - prev_year = 1
          THEN prev_active + entries_u18 - active_u18_dec31 END                 AS closed_u18,
     ROUND(365.0 * active_u18_dec31 / entries_u18, 1)                           AS avg_days_open,
+    -- A moving average: AVG(...) OVER (... ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) averages this year and
+    -- the two before it. 365.0 (not 365) forces decimal division instead of whole-number division.
     ROUND(AVG(365.0 * active_u18_dec31 / entries_u18)
           OVER (ORDER BY year ROWS BETWEEN 2 PRECEDING AND CURRENT ROW), 1)    AS avg_days_open_3yr,
     CASE WHEN year - prev_year = 1
