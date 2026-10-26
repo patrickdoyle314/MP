@@ -53,11 +53,17 @@ def simulate(theta, k, years, ent):
 STARTS = 12  # random restarts per fit; 40 gave the same optima on this data (checked 2026-10-25)
 
 
-def fit(k, years, ent, act, fit_years):
+WARM_STARTS = 3  # random restarts added to a warm start (the previous backtest year's fit)
+
+
+def fit(k, years, ent, act, fit_years, warm=None):
+    """Best of several least-squares fits; `warm` (earlier data's fit) is tried first, with fewer random starts."""
     best = None
     rng = np.random.default_rng(0)
-    for _ in range(STARTS):  # multi-start: the surface has flat directions
-        x0 = [math.log(0.05)] + [v for _ in range(k) for v in (rng.uniform(-9, -4), rng.uniform(-5, 1))]
+    x0s = [list(warm)] if warm is not None else []
+    x0s += [[math.log(0.05)] + [v for _ in range(k) for v in (rng.uniform(-9, -4), rng.uniform(-5, 1))]
+            for _ in range(WARM_STARTS if warm is not None else STARTS)]  # multi-start: the surface has flat directions
+    for x0 in x0s:
         res = least_squares(lambda th: [math.log(simulate(th, k, years, ent)[0][y] / act[y]) for y in fit_years],
                             x0, bounds=([-8] + [-15, -8] * k, [0] + [0, 3] * k))
         if best is None or res.cost < best.cost:
@@ -132,6 +138,7 @@ def main():
     test_years = [2020, 2022, 2023, 2024, 2025]
     # k2 is not backtested: on yearly totals it always collapses onto k1 (see fits["2"])
     bt = {name: [] for name in ("persistence", "ratio", "k0", "k1")}
+    warm = {}
     for y in test_years:
         prev = max(t for t in obs if t < y)
         train = [t for t in obs if t < y]
@@ -144,7 +151,8 @@ def main():
             if len(train) <= 1 + 2 * k:
                 bt[f"k{k}"].append((y, None, truth))
                 continue
-            res = fit(k, years, ent, act, train)
+            res = fit(k, years, ent, act, train, warm=warm.get(k))
+            warm[k] = res.x  # the next (later) backtest year starts from this one; never from later data
             bt[f"k{k}"].append((y, simulate(res.x, k, years, ent)[0][y], truth))
     R["backtest"] = {}
     for name, rows in bt.items():

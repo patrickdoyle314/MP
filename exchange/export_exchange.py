@@ -11,38 +11,17 @@ import csv
 import datetime as dt
 import json
 import re
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common import ROOT, USPS, census, fiscal_year, read_csv, state_code  # noqa: E402
+
 HERE = ROOT / "exchange"
 OUTBOX = HERE / "outbox"
 CONTRACT_VERSION = "1.0"
 THRESHOLD = 5
 COLUMNS = ["geo_level", "state", "county_key", "county_name", "fiscal_year", "measure", "value", "publishable"]
-
-USPS = {
-    "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR", "California": "CA", "Colorado": "CO",
-    "Connecticut": "CT", "Delaware": "DE", "District of Columbia": "DC", "Florida": "FL", "Georgia": "GA",
-    "Hawaii": "HI", "Idaho": "ID", "Illinois": "IL", "Indiana": "IN", "Iowa": "IA", "Kansas": "KS",
-    "Kentucky": "KY", "Louisiana": "LA", "Maine": "ME", "Maryland": "MD", "Massachusetts": "MA",
-    "Michigan": "MI", "Minnesota": "MN", "Mississippi": "MS", "Missouri": "MO", "Montana": "MT",
-    "Nebraska": "NE", "Nevada": "NV", "New Hampshire": "NH", "New Jersey": "NJ", "New Mexico": "NM",
-    "New York": "NY", "North Carolina": "NC", "North Dakota": "ND", "Ohio": "OH", "Oklahoma": "OK",
-    "Oregon": "OR", "Pennsylvania": "PA", "Rhode Island": "RI", "South Carolina": "SC", "South Dakota": "SD",
-    "Tennessee": "TN", "Texas": "TX", "Utah": "UT", "Vermont": "VT", "Virginia": "VA", "Washington": "WA",
-    "West Virginia": "WV", "Wisconsin": "WI", "Wyoming": "WY", "Puerto Rico": "PR",
-}
-CODES = set(USPS.values())
-
-
-def fiscal_year(d):
-    return d.year + (1 if d.month >= 10 else 0)
-
-
-def state_code(s):
-    s = (s or "").strip()
-    return s.upper() if s.upper() in CODES else USPS.get(s)
-
 
 def county_key(name, st):
     n = re.sub(r"\s+(county|parish|borough|census area|municipality)$", "", (name or "").strip().lower())
@@ -78,7 +57,7 @@ def main():
 
     counts = collections.Counter()  # (geo_level, state, fy, measure) -> n
     skipped = collections.Counter()
-    for p in csv.DictReader(open(ROOT / "output/persons.csv", encoding="utf-8-sig")):
+    for p in read_csv("output/persons.csv"):
         # Children and adults never share a count: age_group comes from collect.py
         if p["status"] == "delisted":  # found since an earlier run: no longer an open case
             skipped["no longer listed (found)"] += 1
@@ -113,11 +92,10 @@ def main():
                 counts[("state", st, fy, m)] += 1
 
     pop = collections.Counter()
-    census = ROOT / "data/census/sc-est2024-agesex-civ.csv"
-    if census.exists():
-        for r in csv.DictReader(open(census, encoding="latin-1")):
-            if r["SUMLEV"] == "040" and r["SEX"] == "0" and int(r["AGE"]) < 18 and r["NAME"] in USPS:
-                pop[USPS[r["NAME"]]] += int(r["POPEST2024_CIV"])
+    if (ROOT / "data/census/sc-est2024-agesex-civ.csv").exists():
+        for name, v in census(0, 17)[0].items():
+            if name in USPS:
+                pop[USPS[name]] += v
 
     OUTBOX.mkdir(parents=True, exist_ok=True)
     with open(OUTBOX / "aggregates.csv", "w", newline="", encoding="utf-8") as f:

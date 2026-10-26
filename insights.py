@@ -1,46 +1,23 @@
 """Compute deeper insights from the collected cases and Census population estimates.
 
-Inputs : data/raw/{namus,ncmec}/*.json, output/persons.csv, output/circumstances.csv,
-         data/census/sc-est2024-agesex-civ.csv, data/census/sc-est2024-alldata6.csv
-Output : report/insights.json (read by report/build_report.py and report/charts.py)
+Children (0-17) and young adults (18-25) are computed separately and never pooled; each is compared
+with the Census population of the same ages.
+
+Inputs : output/persons.csv, output/circumstances.csv, Census files in data/census/ (via common.py)
+Output : report/insights.json (read by report/build_report.py, report/charts.py, report/dashboard_data.py)
 
 Usage: python insights.py
 """
 import collections
-import csv
-import datetime as dt
-import functools
 import json
 import re
 import statistics
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent
-# Date of the latest collection run (cases are "open" as of this date)
-COLLECTED = dt.date.fromisoformat(json.loads((ROOT / "data/state.json").read_text("utf-8"))["runs"][-1]["date"])
+from common import RACE_ORDER, ROOT, age_band, census, last_run_date, parse_date, read_csv, state_name
+
+COLLECTED = last_run_date()  # cases are "open" as of the latest collection run
 RECENT_FROM = 2016  # population comparisons use cases from the last ~10 years
-AGE_MAX = 25
 
-STATE_ABBR = {
-    "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas", "CA": "California", "CO": "Colorado",
-    "CT": "Connecticut", "DE": "Delaware", "DC": "District of Columbia", "FL": "Florida", "GA": "Georgia",
-    "HI": "Hawaii", "ID": "Idaho", "IL": "Illinois", "IN": "Indiana", "IA": "Iowa", "KS": "Kansas",
-    "KY": "Kentucky", "LA": "Louisiana", "ME": "Maine", "MD": "Maryland", "MA": "Massachusetts",
-    "MI": "Michigan", "MN": "Minnesota", "MS": "Mississippi", "MO": "Missouri", "MT": "Montana",
-    "NE": "Nebraska", "NV": "Nevada", "NH": "New Hampshire", "NJ": "New Jersey", "NM": "New Mexico",
-    "NY": "New York", "NC": "North Carolina", "ND": "North Dakota", "OH": "Ohio", "OK": "Oklahoma",
-    "OR": "Oregon", "PA": "Pennsylvania", "RI": "Rhode Island", "SC": "South Carolina", "SD": "South Dakota",
-    "TN": "Tennessee", "TX": "Texas", "UT": "Utah", "VT": "Vermont", "VA": "Virginia", "WA": "Washington",
-    "WV": "West Virginia", "WI": "Wisconsin", "WY": "Wyoming", "PR": "Puerto Rico",
-}
-RACE_ORDER = ["Hispanic", "White", "Black", "American Indian / Alaska Native", "Asian",
-              "Native Hawaiian / Pacific Islander", "Two or more races"]
-NAMUS_RACE = {"White / Caucasian": "White", "Black / African American": "Black",
-              "American Indian / Alaska Native": "American Indian / Alaska Native", "Asian": "Asian",
-              "Hawaiian / Pacific Islander": "Native Hawaiian / Pacific Islander"}
-NCMEC_RACE = {"white": "White", "black": "Black", "hispanic": "Hispanic", "whiteHisp": "Hispanic",
-              "blackHisp": "Hispanic", "asian": "Asian", "amInd": "American Indian / Alaska Native",
-              "pacific": "Native Hawaiian / Pacific Islander", "biracial": "Two or more races"}
 COUNTRIES = ("Mexico|Guatemala|Honduras|El Salvador|Nicaragua|Costa Rica|Panama|Belize|Cuba|Haiti|"
              "Dominican Republic|Jamaica|Trinidad|Colombia|Venezuela|Ecuador|Peru|Bolivia|Brazil|Argentina|"
              "Chile|Paraguay|Uruguay|Canada|England|United Kingdom|Ireland|France|Germany|Italy|Spain|"
@@ -57,81 +34,11 @@ FOSTER_RE = re.compile(r"\b(?:foster|group home|placement|shelter|residential (?
                        r"DCFS|CPS|DHS custody|state custody|youth home|children'?s home)\b", re.I)
 
 
-def load_csv(p):
-    return list(csv.DictReader(open(ROOT / p, encoding="utf-8-sig")))
-
-
 def age_of(p):
     try:
         return int(p["age_missing_min"])
     except ValueError:
         return None
-
-
-def band(a):
-    return None if a is None else "0-11" if a < 12 else "12-17" if a < 18 else "18-25"
-
-
-def date_of(p):
-    try:
-        return dt.date.fromisoformat(p["last_contact_date"][:10])
-    except ValueError:
-        return None
-
-
-@functools.lru_cache(maxsize=None)
-def raw_record(src, cid):
-    """A raw NamUs record or NCMEC childBean, read from disk once per run."""
-    d = json.load(open(ROOT / "data/raw" / src / f"{cid}.json", encoding="utf-8"))
-    return d if src == "namus" else d["childBean"]
-
-
-@functools.lru_cache(maxsize=None)
-def race_of(key):
-    src, cid = key.split(":", 1)
-    if src == "namus":
-        d = raw_record("namus", cid)
-        names = {e["name"] for e in d["subjectDescription"].get("ethnicities") or []} - {"Other", "Uncertain"}
-        if "Hispanic / Latino" in names:
-            return "Hispanic"
-        races = {NAMUS_RACE[n] for n in names if n in NAMUS_RACE}
-        return "Two or more races" if len(races) > 1 else (races.pop() if races else None)
-    return NCMEC_RACE.get(raw_record("ncmec", cid).get("race"))
-
-
-# --------------------------------------------------------------------------- census
-
-CENSUS_RACE = {"1": "White", "2": "Black", "3": "American Indian / Alaska Native", "4": "Asian",
-               "5": "Native Hawaiian / Pacific Islander", "6": "Two or more races"}
-
-
-@functools.lru_cache(maxsize=None)
-def census_tables():
-    """Census 2024 estimates, read once: {(state, age): pop} and {(state, race, age): pop}."""
-    by_state_age, by_state_race_age = collections.Counter(), collections.Counter()
-    for r in csv.DictReader(open(ROOT / "data/census/sc-est2024-agesex-civ.csv", encoding="latin-1")):
-        if r["SUMLEV"] == "040" and r["SEX"] == "0":
-            by_state_age[(r["NAME"], int(r["AGE"]))] += int(r["POPEST2024_CIV"])
-    for r in csv.DictReader(open(ROOT / "data/census/sc-est2024-alldata6.csv", encoding="latin-1")):
-        if r["SEX"] != "0" or r["ORIGIN"] not in ("1", "2"):
-            continue
-        race = "Hispanic" if r["ORIGIN"] == "2" else CENSUS_RACE[r["RACE"]]
-        by_state_race_age[(r["NAME"], race, int(r["AGE"]))] += int(r["POPESTIMATE2024"])
-    return by_state_age, by_state_race_age
-
-
-def census(lo, hi):
-    """Population aged lo-hi (2024 estimate): by state, nationally by race/ethnicity, and by state and race."""
-    by_state_age, by_state_race_age = census_tables()
-    by_state, race, state_race = collections.Counter(), collections.Counter(), collections.Counter()
-    for (st, age), v in by_state_age.items():
-        if lo <= age <= hi:
-            by_state[st] += v
-    for (st, rc, age), v in by_state_race_age.items():
-        if lo <= age <= hi:
-            race[rc] += v
-            state_race[(st, rc)] += v
-    return by_state, race, state_race
 
 
 # --------------------------------------------------------------------------- main
@@ -140,16 +47,17 @@ GROUPS = {"child": (0, 17), "adult": (18, 25)}  # analyzed apart; never pooled
 
 
 def main():
-    P = {p["person_key"]: p for p in load_csv("output/persons.csv")}
-    C = {c["person_key"]: c for c in load_csv("output/circumstances.csv")}
+    P = {p["person_key"]: p for p in read_csv("output/persons.csv")}
+    C = {c["person_key"]: c for c in read_csv("output/circumstances.csv")}
     out = {"collected": COLLECTED.isoformat(), "recent_from": RECENT_FROM}
     for group, (lo, hi) in GROUPS.items():
         rows = []
         for k, p in P.items():
             if p["age_group"] != group or p["status"] == "delisted":  # open cases only
                 continue
-            a, d = age_of(p), date_of(p)
-            rows.append(dict(key=k, p=p, c=C[k], age=a, band=band(a), date=d, sex=p["sex"].lower(),
+            a, d = age_of(p), parse_date(p["last_contact_date"])
+            rows.append(dict(key=k, p=p, c=C[k], age=a, band=age_band(a), date=d, sex=p["sex"].lower(),
+                             race=p["race_ethnicity"] or None,
                              type=C[k]["how_missing"], text=p["circumstances"]))
         out[group] = compute(rows, lo, hi, *census(lo, hi))
     (ROOT / "report").mkdir(exist_ok=True)
@@ -184,7 +92,7 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
     # 2. Race vs population (recent cases) -----------------------------------
     rc = collections.Counter()
     for r in recent:
-        rc[race_of(r["key"]) or "Unknown"] += 1
+        rc[r["race"] or "Unknown"] += 1
     known = sum(v for k, v in rc.items() if k != "Unknown")
     pop_total = sum(pop_race.values())
     I["race"] = [[k, rc[k], rc[k] / known, pop_race[k] / pop_total, (rc[k] / known) / (pop_race[k] / pop_total)]
@@ -192,20 +100,20 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
     I["race_unknown"], I["race_known"] = rc["Unknown"], known
     I["race_by_source"] = {}
     for src in ("namus", "ncmec"):
-        sc_ = collections.Counter(race_of(r["key"]) for r in recent if r["key"].startswith(src))
+        sc_ = collections.Counter(r["race"] for r in recent if r["key"].startswith(src))
         kn = sum(v for k, v in sc_.items() if k)
         I["race_by_source"][src] = {k: sc_[k] / kn for k in RACE_ORDER} | {"n": kn}
     mig = re.compile(r"\b(?:border|crossing|crossed|migrant|immigra\w*|undocumented|smuggl\w*|coyote|"
                      r"Rio Grande|unaccompanied|refugee|ORR)\b", re.I)
-    hisp = [r for r in recent if race_of(r["key"]) == "Hispanic"]
+    hisp = [r for r in recent if r["race"] == "Hispanic"]
     I["hispanic_migration_related"] = [sum(bool(mig.search(r["text"])) for r in hisp), len(hisp)]
     # Cases come disproportionately from some states; compare each race with the population of the states
     # the cases come from (weighted by each state's share of known-race cases), not only with the nation.
     st_cases = collections.Counter()
     for r in recent:
-        if race_of(r["key"]):
+        if r["race"]:
             st = r["p"]["last_contact_state"].strip()
-            st = STATE_ABBR.get(st.upper(), st) if len(st) <= 2 else st
+            st = state_name(st)
             if pop_state.get(st):
                 st_cases[st] += 1
     n_st = sum(st_cases.values())
@@ -219,7 +127,7 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
     sc = collections.Counter()
     for r in recent:
         s = r["p"]["last_contact_state"].strip()
-        s = STATE_ABBR.get(s.upper(), s) if len(s) <= 2 else s
+        s = state_name(s)
         sc[s] += 1
     rates = [[s, sc[s], pop_state[s], 100000 * sc[s] / pop_state[s]] for s in pop_state if pop_state[s]]
     rates.sort(key=lambda x: -x[3])
@@ -229,7 +137,7 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
     split = collections.defaultdict(collections.Counter)
     for r in recent:
         s = r["p"]["last_contact_state"].strip()
-        split[STATE_ABBR.get(s.upper(), s) if len(s) <= 2 else s][r["key"].split(":")[0]] += 1
+        split[state_name(s)][r["key"].split(":")[0]] += 1
     I["state_source_split"] = {s: dict(split[s]) for s, *_ in rates}
 
     # 4. Seasonality. Exact dates only (Jan 1 is often a placeholder), and cases from the last 12 months
@@ -298,8 +206,7 @@ def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
     sib = 0
     for r in rows:
         if r["key"].startswith("ncmec"):
-            b = raw_record("ncmec", r["key"].split(":", 1)[1])
-            sib += bool(b.get("otherChildList"))
+            sib += r["p"]["with_other_children"] == "1"
     I["ncmec_with_companions"] = [sib, sum(r["key"].startswith("ncmec") for r in rows)]
     return I
 

@@ -6,27 +6,26 @@ pooled. Only cases still open on the latest collection date are counted.
 Usage: python report/make_facts.py
 """
 import collections
-import csv
 import datetime as dt
 import json
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent
-STATE = json.loads((ROOT / "data/state.json").read_text("utf-8"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from common import ROOT, age_band, disk_cached, load_state, read_csv  # noqa: E402
+
+STATE = load_state()
 LAST_RUN = dt.date.fromisoformat(STATE["runs"][-1]["date"])
 GROUP_BANDS = {"child": ("0-11", "12-17"), "adult": ("18-25",)}
 
 
-def load(p):
-    return list(csv.DictReader(open(ROOT / p, encoding="utf-8-sig")))
+band = age_band
 
 
-def band(a):
-    try:
-        a = int(a)
-    except ValueError:
-        return None
-    return "0-11" if a < 12 else "12-17" if a < 18 else "18-25"
+def unidentified_posters(files):
+    """NCMEC posters for unidentified deceased children (not missing-person cases); counted once per change."""
+    return disk_cached("ncmec_unidentified", files, lambda: sum(
+        json.load(open(f, encoding="utf-8"))["childBean"].get("caseType") == "unidentified" for f in files), "1")
 
 
 def split(s):
@@ -101,11 +100,11 @@ def early_resolution(P):
 
 
 def main():
-    P = {p["person_key"]: p for p in load("output/persons.csv")}
+    P = {p["person_key"]: p for p in read_csv("output/persons.csv")}
     open_keys = {k for k, p in P.items() if p["status"] != "delisted"}
-    C = [c for c in load("output/circumstances.csv") if c["person_key"] in open_keys]
-    E = load("output/events.csv")
-    ncmec_files = list((ROOT / "data/raw/ncmec").glob("*.json"))
+    C = [c for c in read_csv("output/circumstances.csv") if c["person_key"] in open_keys]
+    E = read_csv("output/events.csv")
+    ncmec_files = sorted((ROOT / "data/raw/ncmec").glob("*.json"))
     F = {
         "collected": f"{LAST_RUN:%B} {LAST_RUN.day}, {LAST_RUN.year}",
         "runs": len(STATE["runs"]),
@@ -114,8 +113,7 @@ def main():
         "delisted_so_far": sum(1 for p in P.values() if p["status"] == "delisted"),
         "delisted_children": sum(1 for p in P.values() if p["status"] == "delisted" and p["age_group"] == "child"),
         "namus_cases": sum(1 for f in (ROOT / "data/raw/namus").glob("*.json") if not f.stem.endswith(".delisted")),
-        "ncmec_unidentified_removed": sum(
-            json.load(open(f, encoding="utf-8"))["childBean"].get("caseType") == "unidentified" for f in ncmec_files),
+        "ncmec_unidentified_removed": unidentified_posters(ncmec_files),
         "unknown_age": sum(1 for c in C if c["age_group"] == "unknown"),
         "child": summarize(P, C, E, "child"),
         "adult": summarize(P, C, E, "adult"),

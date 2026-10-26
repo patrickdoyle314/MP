@@ -43,6 +43,8 @@ cases still open on the latest collection date.
 ## Layout
 
 ```
+pipeline.py           rebuild everything in one process, with timings
+common.py             shared helpers: states, dates, age bands, race coding, cached loaders
 collect.py            collect NamUs + NCMEC cases, build timelines (output/)
 scheduled_run.py      one weekly run: collect, refresh derived files, log (data/logs/)
 circumstances.py      classify how, where and doing what (output/circumstances.csv)
@@ -151,19 +153,23 @@ The task runs as the signed-in user (no stored password) and only while that use
 
 ## Rebuilding the report
 
-The Word report (`Missing Children and Young Adults - Circumstances Report.docx`) is generated
-from the data. After a new collection, run these in order:
+The Word report (`Missing Children and Young Adults - Circumstances Report.docx`) and every other output
+are generated from the data. One command rebuilds everything, in one process, in about 15 seconds:
 
 ```bash
-python collect.py
-python circumstances.py output/persons.csv
-python report/make_facts.py
-python insights.py
-python models/stock_flow_ncic.py   # national model; also draws its chart
-python report/charts.py
-python report/build_report.py
-python report/dashboard_data.py    # datasets for the interactive dashboard (aggregates only)
+python pipeline.py                     # rebuild all outputs, report and dashboard data
+python pipeline.py --collect           # collect new data first
+python pipeline.py --from insights     # start at a step; --only charts report runs just those
 ```
+
+The steps, in order (each is also a script you can run on its own): `collect.py --offline` (rebuild from
+cached raw data), `circumstances.py`, `report/make_facts.py`, `insights.py`, `models/stock_flow_ncic.py`,
+`report/charts.py`, `report/build_report.py`, `report/dashboard_data.py`, `exchange/export_exchange.py`,
+`analysis/open_case_metrics.py`.
+
+**Speed.** `collect.py` keeps each raw record's parsed form in `data/cache/normalized.pkl`, re-parsing only
+files that changed (editing `collect.py` clears it); Census tables are cached in `data/cache/` too. Shared
+helpers (states, dates, age bands, race coding, cached loaders) live in `common.py`.
 
 The report is titled *Missing Children in the United States*: children first, young adults in their own
 part. `insights.py` also reads two Census Bureau population-estimate files in `data/census/`,

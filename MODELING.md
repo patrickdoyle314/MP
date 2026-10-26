@@ -85,3 +85,4 @@ Every calculation behind the report and dashboard was re-checked. Corrections an
 | 8 | **Years open by cause** | Medians describe cases still open (survivors); resolved runaways have left, so open runaway cases look recent | Already stated; kept |
 | 9 | **UC alignment tests** (4 binomial tests) | Timing p = 0.004 survives a Bonferroni correction for 4 tests (0.017). Siblings in one case are not independent, which slightly overstates certainty | Caveat for the alignment notes |
 | 10 | **Code speed** | Pipeline 50 s → about 28 s: `stock_flow_ncic.py` 20.6 s → 4.5 s (12 restarts instead of 40, no backtest of the unidentifiable two-group model; same fit and errors), `insights.py` 7.2 s → 3.3 s (raw records and Census tables read once) | Outputs checked identical before and after |
+| 11 | **Code structure (2026-10-26)** | Shared `common.py`, cached raw parsing, one-process `pipeline.py`: full rebuild about 28 s → 15 s | Outputs checked identical before and after |

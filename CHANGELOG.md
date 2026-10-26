@@ -7,6 +7,31 @@ dates are when the change was made.
 
 Nothing yet.
 
+## [0.9.0] - 2026-10-26
+
+### Added
+- `pipeline.py`: rebuilds every output in one process with per-step timings (`--collect`, `--from`, `--only`).
+- `common.py`: shared helpers (state names and codes, fiscal years, dates, age bands, race coding, cached CSV
+  and Census loaders, a disk cache) replacing copies in `insights.py`, `report/make_facts.py` and
+  `exchange/export_exchange.py`.
+- `race_ethnicity` and `with_other_children` columns in `output/persons.csv`, so later steps no longer
+  re-read 6,800 raw case files.
+
+### Changed
+- `collect.py` caches each raw record's parsed form (`data/cache/normalized.pkl`, re-parsed only when the
+  file changes; editing the script clears it), parses dates without `strptime`, and writes `timeline.json`
+  compactly (24.6 → 20.7 MB, same content).
+- `circumstances.py` compiles its patterns once and stops at the first matching cause.
+- `models/stock_flow_ncic.py` warm-starts each backtest year from the previous year's fit (earlier data only)
+  with 3 extra random starts.
+
+### Performance
+- Full rebuild about 28 s → **15 s** in one process (about 50 s before v0.8.0). Standalone: `collect.py`
+  rebuild 8.2 → 3.0 s, `insights.py` 3.3 → 1.4 s, `models/stock_flow_ncic.py` 4.5 → 3.2 s,
+  `circumstances.py` 3.7 → 3.1 s.
+- Every output checked identical to before (persons, events, timeline content, circumstances, facts, insights,
+  model results, dashboard data, exchange outbox, `results/`, Word report text), apart from the two new columns.
+
 ## [0.8.0] - 2026-10-25
 
 ### Changed

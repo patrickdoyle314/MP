@@ -24,7 +24,9 @@ from __future__ import annotations
 import argparse
 import csv
 import datetime as dt
+import hashlib
 import json
+import pickle
 import re
 import sys
 import threading
@@ -33,6 +35,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
+
+from common import namus_race, ncmec_race
+from common import parse_date as parse_record_date
 
 ROOT = Path(__file__).resolve().parent
 RAW = ROOT / "data" / "raw"
@@ -395,14 +400,7 @@ def mine_narrative(text: str, last_contact: dt.date | None, field: str,
 # --------------------------------------------------------------------------- normalize
 
 def _d(s: str | None) -> dt.date | None:
-    if not s:
-        return None
-    for fmt in ("%Y-%m-%d", "%b %d, %Y %I:%M:%S %p"):
-        try:
-            return dt.datetime.strptime(s[:10] if fmt == "%Y-%m-%d" else s, fmt).date()
-        except ValueError:
-            continue
-    return None
+    return parse_record_date(s)
 
 
 def _name(o) -> str:
@@ -423,7 +421,9 @@ def normalize_namus(d: dict, st: dict) -> tuple[dict, list[dict]]:
         ncmec_id="", ncic="",
         first_name=sid.get("firstName", ""), middle_name=sid.get("middleName", ""),
         last_name=sid.get("lastName", ""), nicknames=sid.get("nicknames", ""),
-        sex=_name(sdesc.get("sex")), race=_name(sdesc.get("primaryEthnicity")), dob=sid.get("dateOfBirth", ""),
+        sex=_name(sdesc.get("sex")), race=_name(sdesc.get("primaryEthnicity")),
+        race_ethnicity=namus_race(e["name"] for e in sdesc.get("ethnicities") or []), with_other_children="",
+        dob=sid.get("dateOfBirth", ""),
         age_missing_min=sid.get("computedMissingMinAge", ""),
         age_missing_max=sid.get("computedMissingMaxAge", ""),
         last_contact_date=sight.get("date", ""), last_contact_city=addr.get("city", ""),
@@ -469,7 +469,8 @@ def normalize_ncmec(d: dict, key: str, st: dict) -> tuple[dict, list[dict]]:
         namus_id=b.get("namUs", ""), ncmec_id=key,
         ncic=b.get("ncic", ""), first_name=b.get("firstName", ""),
         middle_name=b.get("middleName", ""), last_name=b.get("lastName", ""), nicknames="",
-        sex=b.get("sex", ""), race=b.get("race", ""),
+        sex=b.get("sex", ""), race=b.get("race", ""), race_ethnicity=ncmec_race(b.get("race")),
+        with_other_children="1" if b.get("otherChildList") else "",
         dob=_d(b.get("birthDate")).isoformat() if _d(b.get("birthDate")) else "",
         age_missing_min=b.get("approxAge") or "", age_missing_max="",
         last_contact_date=last.isoformat() if last else "", last_contact_city=b.get("missingCity", ""),
@@ -537,25 +538,74 @@ def age_group(p: dict) -> str:
     return "unknown"  # age range straddles 18
 
 
+NORM_CACHE = ROOT / "data" / "cache" / "normalized.pkl"
+
+
+def normalized_records() -> dict:
+    """{(source, file stem): normalized (person, events) or None}, without listing-state fields.
+
+    Raw files rarely change between runs, so each is parsed and normalized once and kept in
+    data/cache/normalized.pkl, keyed by file size and modification time. Editing this script
+    invalidates the whole cache.
+    """
+    version = hashlib.sha1(Path(__file__).read_bytes()).hexdigest()
+    cache = {}
+    if NORM_CACHE.exists():
+        try:
+            saved = pickle.loads(NORM_CACHE.read_bytes())
+            cache = saved["records"] if saved.get("version") == version else {}
+        except Exception:
+            cache = {}
+    out = {}
+    for src in ("namus", "ncmec"):
+        for f in sorted((RAW / src).glob("*.json")):
+            if f.stem.endswith(".delisted"):
+                continue
+            stat = f.stat()
+            sig = (stat.st_size, stat.st_mtime_ns)
+            hit = cache.get((src, f.stem))
+            if hit and hit[0] == sig:
+                out[(src, f.stem)] = hit
+                continue
+            d = json.loads(f.read_text("utf-8"))
+            if src == "ncmec" and d["childBean"].get("caseType") == "unidentified":
+                rec = None  # unidentified-remains poster, not a missing child
+            else:
+                rec = normalize_namus(d, {}) if src == "namus" else normalize_ncmec(d, f.stem, {})
+            out[(src, f.stem)] = (sig, rec)
+    NORM_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    NORM_CACHE.write_bytes(pickle.dumps({"version": version, "records": out}, protocol=pickle.HIGHEST_PROTOCOL))
+    return out
+
+
+def apply_state(person: dict, events: list, st: dict) -> tuple[dict, list]:
+    """Copy a cached record and add this run's listing state (status, listing dates, delisting event)."""
+    person, events = dict(person), [dict(e) for e in events]
+    if person["status"] != "resolved":
+        person["status"] = st.get("status", "listed")
+    person["first_listed"], person["last_listed"] = st.get("first_listed", ""), st.get("last_listed", "")
+    person["delisted_window"] = _window(st)
+    return person, events + _delist_events(st)
+
+
 def build_outputs(state: dict):
     persons: dict[str, dict] = {}
     events: dict[str, list[dict]] = {}
+    records = normalized_records()
 
-    for f in sorted((RAW / "namus").glob("*.json")):
-        if f.stem.endswith(".delisted"):
+    for (src, stem), (_, rec) in records.items():
+        if src != "namus" or rec is None:
             continue
-        d = json.loads(f.read_text("utf-8"))
-        p, ev = normalize_namus(d, state["namus"].get(f.stem, {}))
+        p, ev = apply_state(*rec, state["namus"].get(stem, {}))
         for e in ev:
             e["source"] = "namus"
         persons[p["person_key"]], events[p["person_key"]] = p, ev
 
     namus_index = {p["namus_id"]: k for k, p in persons.items()}
-    for f in sorted((RAW / "ncmec").glob("*.json")):
-        d = json.loads(f.read_text("utf-8"))
-        if d["childBean"].get("caseType") == "unidentified":
-            continue  # unidentified-remains poster, not a missing child
-        p, ev = normalize_ncmec(d, f.stem, state["ncmec"].get(f.stem, {}))
+    for (src, stem), (_, rec) in records.items():
+        if src != "ncmec" or rec is None:
+            continue
+        p, ev = apply_state(*rec, state["ncmec"].get(stem, {}))
         for e in ev:
             e["source"] = "ncmec"
         nid = p["namus_id"].strip().upper()
@@ -606,7 +656,8 @@ def build_outputs(state: dict):
         w = csv.DictWriter(fp, cols)
         w.writeheader()
         w.writerows(persons.values())
-    (OUT / "timeline.json").write_text(json.dumps(timeline, indent=1, default=str), "utf-8")
+    with open(OUT / "timeline.json", "w", encoding="utf-8") as f:  # compact: 25 MB, read by programs
+        json.dump(timeline, f, separators=(",", ":"), default=str)
 
     n_ev = sum(len(v) for v in events.values())
     by_phase = {ph: sum(e["phase"] == ph for v in events.values() for e in v) for ph in order}

@@ -42,8 +42,16 @@ ACTIVITY = [
 ]
 BOILERPLATE = re.compile(r"^\W*\S+(?: \S+){0,3} (?:was|were) last seen (?:on|in) [^.]{0,40}\.?\W*$", re.I)
 
+# Compile every pattern once (re.search with a string re-looks it up on every call)
+TYPE, PLACE, ACTIVITY = ([(name, re.compile(rx, re.I)) for name, rx in table] for table in (TYPE, PLACE, ACTIVITY))
+
+
 def classify(text, table):
-    return [name for name, rx in table if re.search(rx, text, re.I)]
+    return [name for name, rx in table if rx.search(text)] if text else []
+
+
+def first_match(text, table):
+    return next((name for name, rx in table if rx.search(text)), None) if text else None
 
 rows = []
 for p in P:
@@ -51,9 +59,8 @@ for p in P:
     ct = p.get("case_type", "")
     nc = {"endangeredRunaway": "Runaway / left voluntarily", "familyAbduct": "Family abduction",
           "nonFamilyAbduct": "Non-family abduction", "lostInjuredMissing": "Outdoors / water (lost, drowning, accident)"}.get(ct)
-    types = classify(t, TYPE)
     rows.append(dict(p=p, text=t, thin=len(t) < 25 or bool(BOILERPLATE.match(t)),
-                     type=nc or (types[0] if types else "Not stated"),
+                     type=nc or first_match(t, TYPE) or "Not stated",
                      place=classify(t, PLACE), act=classify(t, ACTIVITY)))
 
 def age_band(p):
