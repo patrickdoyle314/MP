@@ -140,7 +140,7 @@ def draw(I, sfx):
     ax.axhline(100 / 12, color=MUTED, linewidth=1, linestyle=(0, (3, 3)))
     ax.text(11.4, 100 / 12 + 0.15, "even spread", ha="right", va="bottom", fontsize=7.5, color=MUTED)
     ax.set_xticks(range(12), months)
-    ax.set_ylabel("Share of cases (%)")
+    ax.set_ylabel("Share, per-day adjusted (%)")
     ax.set_ylim(0, max(14, max(100 * max(v["shares"]) for v in I["season"].values()) * 1.15))
     ax.legend(frameon=False, loc="lower center", ncol=2, fontsize=8)
     frame(ax)

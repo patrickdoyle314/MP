@@ -7,6 +7,28 @@ dates are when the change was made.
 
 Nothing yet.
 
+## [0.8.0] - 2026-10-25
+
+### Changed
+- Report, report data and dashboard data rebuilt from the Oct 25 weekly collection (139 cases found since
+  collection began; 7,571 open child cases, 4,728 young adults).
+- **Seasonality is per day:** monthly shares are adjusted for month length (and January 1, which is excluded).
+  Children's July vs. February gap is +53% per day (+68% on raw shares). Raw shares kept as `raw_shares`.
+- **Race comparisons also adjust for geography:** each group is compared with the population of the states its
+  cases come from, as well as the nation (`race_state_adjusted`). Report and dashboard show both; the young-adult
+  American Indian / Alaska Native ratio is 4.7x nationally and 2.4x against the states cases come from.
+- README: the companion UC-Placement repository is public.
+
+### Added
+- `early_resolution` in `report/facts.json` and the report: share of NCMEC child cases found between the last two
+  runs, by how long they had been open (23% of cases open ≤ 30 days within 3 days; 0.1% over 5 years).
+- MODELING.md: math review of every calculation, with corrections, caveats and new angles.
+
+### Performance
+- Pipeline about 50 s → 28 s with identical outputs: `models/stock_flow_ncic.py` 20.6 s → 4.5 s (12 restarts,
+  no backtest of the unidentifiable two-group model), `insights.py` 7.2 s → 3.3 s (raw records and Census
+  tables read once).
+
 ## [0.7.0] - 2026-10-23
 
 ### Added

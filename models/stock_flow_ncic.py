@@ -50,10 +50,13 @@ def simulate(theta, k, years, ent):
     return out, a, comps
 
 
+STARTS = 12  # random restarts per fit; 40 gave the same optima on this data (checked 2026-10-25)
+
+
 def fit(k, years, ent, act, fit_years):
     best = None
     rng = np.random.default_rng(0)
-    for _ in range(40):  # multi-start: the surface has flat directions
+    for _ in range(STARTS):  # multi-start: the surface has flat directions
         x0 = [math.log(0.05)] + [v for _ in range(k) for v in (rng.uniform(-9, -4), rng.uniform(-5, 1))]
         res = least_squares(lambda th: [math.log(simulate(th, k, years, ent)[0][y] / act[y]) for y in fit_years],
                             x0, bounds=([-8] + [-15, -8] * k, [0] + [0, 3] * k))
@@ -127,7 +130,8 @@ def main():
 
     # Backtest: one-year-ahead, refitting on earlier years only
     test_years = [2020, 2022, 2023, 2024, 2025]
-    bt = {name: [] for name in ("persistence", "ratio", "k0", "k1", "k2")}
+    # k2 is not backtested: on yearly totals it always collapses onto k1 (see fits["2"])
+    bt = {name: [] for name in ("persistence", "ratio", "k0", "k1")}
     for y in test_years:
         prev = max(t for t in obs if t < y)
         train = [t for t in obs if t < y]
@@ -136,7 +140,7 @@ def main():
         bt["ratio"].append((y, ent[y] * act[prev] / ent[prev], truth))
         a0 = sum(act[t] for t in train) / sum(ent[t] for t in train)
         bt["k0"].append((y, a0 * ent[y], truth))
-        for k in (1, 2):
+        for k in (1,):
             if len(train) <= 1 + 2 * k:
                 bt[f"k{k}"].append((y, None, truth))
                 continue

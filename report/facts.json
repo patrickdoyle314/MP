@@ -1,26 +1,26 @@
 {
- "collected": "October 22, 2026",
- "runs": 2,
+ "collected": "October 25, 2026",
+ "runs": 3,
  "first_run": "2026-10-21",
- "n_open": 12373,
- "delisted_so_far": 20,
- "delisted_children": 20,
+ "n_open": 12303,
+ "delisted_so_far": 139,
+ "delisted_children": 138,
  "namus_cases": 9046,
  "ncmec_unidentified_removed": 310,
- "unknown_age": 3,
+ "unknown_age": 4,
  "child": {
-  "n": 7641,
+  "n": 7571,
   "both": 30,
-  "any_detail": 2842,
+  "any_detail": 2841,
   "coords": 4519,
   "type": [
    [
     "Not stated",
-    5995
+    5999
    ],
    [
     "Runaway / left voluntarily",
-    653
+    579
    ],
    [
     "Family abduction",
@@ -42,7 +42,7 @@
   "ncmec_label": [
    [
     "endangeredRunaway",
-    388
+    314
    ],
    [
     "missing",
@@ -84,12 +84,12 @@
    ],
    [
     "2020-2026",
-    3837
+    3767
    ]
   ],
   "bands": {
    "0-11": {
-    "n": 1761,
+    "n": 1760,
     "type": [
      [
       "Not stated",
@@ -113,7 +113,7 @@
      ],
      [
       "Runaway / left voluntarily",
-      10
+      9
      ]
     ],
     "place": [
@@ -171,15 +171,15 @@
     "any": 782
    },
    "12-17": {
-    "n": 5880,
+    "n": 5811,
     "type": [
      [
       "Not stated",
-      4949
+      4953
      ],
      [
       "Runaway / left voluntarily",
-      643
+      570
      ],
      [
       "Outdoors / water (lost, drowning, accident)",
@@ -209,14 +209,14 @@
      ],
      [
       "School / college",
-      244
-     ],
-     [
-      "Park / outdoors / water",
-      215
+      245
      ],
      [
       "Vehicle / transit",
+      214
+     ],
+     [
+      "Park / outdoors / water",
       214
      ],
      [
@@ -250,7 +250,7 @@
       69
      ]
     ],
-    "any": 2060
+    "any": 2059
    }
   },
   "nf": {
@@ -294,7 +294,7 @@
    "pre1990": 36
   },
   "timeline": {
-   "before_people": 108,
+   "before_people": 107,
    "between_people": 1433,
    "between_types": [
     [
@@ -318,14 +318,14 @@
   }
  },
  "adult": {
-  "n": 4729,
+  "n": 4728,
   "both": 6,
   "any_detail": 2650,
   "coords": 4514,
   "type": [
    [
     "Not stated",
-    4047
+    4046
    ],
    [
     "Outdoors / water (lost, drowning, accident)",
@@ -373,16 +373,16 @@
    ],
    [
     "2020-2026",
-    739
+    738
    ]
   ],
   "bands": {
    "18-25": {
-    "n": 4729,
+    "n": 4728,
     "type": [
      [
       "Not stated",
-      4047
+      4046
      ],
      [
       "Outdoors / water (lost, drowning, accident)",
@@ -512,5 +512,37 @@
    "prior_history": 19
   }
  },
- "ncmec_cases": 3693
+ "ncmec_cases": 3742,
+ "early_resolution": {
+  "from": "2026-10-22",
+  "to": "2026-10-25",
+  "days": 3,
+  "bands": [
+   [
+    "0-30 days",
+    87,
+    375
+   ],
+   [
+    "31-90 days",
+    24,
+    341
+   ],
+   [
+    "91-365 days",
+    5,
+    504
+   ],
+   [
+    "1-5 years",
+    1,
+    542
+   ],
+   [
+    "over 5 years",
+    1,
+    1353
+   ]
+  ]
+ }
 }

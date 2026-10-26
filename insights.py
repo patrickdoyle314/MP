@@ -9,6 +9,7 @@ Usage: python insights.py
 import collections
 import csv
 import datetime as dt
+import functools
 import json
 import re
 import statistics
@@ -78,38 +79,59 @@ def date_of(p):
         return None
 
 
+@functools.lru_cache(maxsize=None)
+def raw_record(src, cid):
+    """A raw NamUs record or NCMEC childBean, read from disk once per run."""
+    d = json.load(open(ROOT / "data/raw" / src / f"{cid}.json", encoding="utf-8"))
+    return d if src == "namus" else d["childBean"]
+
+
+@functools.lru_cache(maxsize=None)
 def race_of(key):
     src, cid = key.split(":", 1)
     if src == "namus":
-        d = json.load(open(ROOT / "data/raw/namus" / f"{cid}.json", encoding="utf-8"))
+        d = raw_record("namus", cid)
         names = {e["name"] for e in d["subjectDescription"].get("ethnicities") or []} - {"Other", "Uncertain"}
         if "Hispanic / Latino" in names:
             return "Hispanic"
         races = {NAMUS_RACE[n] for n in names if n in NAMUS_RACE}
         return "Two or more races" if len(races) > 1 else (races.pop() if races else None)
-    b = json.load(open(ROOT / "data/raw/ncmec" / f"{cid}.json", encoding="utf-8"))["childBean"]
-    return NCMEC_RACE.get(b.get("race"))
+    return NCMEC_RACE.get(raw_record("ncmec", cid).get("race"))
 
 
 # --------------------------------------------------------------------------- census
 
-def census(lo, hi):
-    """Population aged lo-hi (2024 estimate): by state, and nationally by race/ethnicity."""
-    by_state = collections.Counter()
+CENSUS_RACE = {"1": "White", "2": "Black", "3": "American Indian / Alaska Native", "4": "Asian",
+               "5": "Native Hawaiian / Pacific Islander", "6": "Two or more races"}
+
+
+@functools.lru_cache(maxsize=None)
+def census_tables():
+    """Census 2024 estimates, read once: {(state, age): pop} and {(state, race, age): pop}."""
+    by_state_age, by_state_race_age = collections.Counter(), collections.Counter()
     for r in csv.DictReader(open(ROOT / "data/census/sc-est2024-agesex-civ.csv", encoding="latin-1")):
-        if r["SUMLEV"] == "040" and r["SEX"] == "0" and lo <= int(r["AGE"]) <= hi:
-            by_state[r["NAME"]] += int(r["POPEST2024_CIV"])
-    race = collections.Counter()
+        if r["SUMLEV"] == "040" and r["SEX"] == "0":
+            by_state_age[(r["NAME"], int(r["AGE"]))] += int(r["POPEST2024_CIV"])
     for r in csv.DictReader(open(ROOT / "data/census/sc-est2024-alldata6.csv", encoding="latin-1")):
-        if r["SEX"] != "0" or not lo <= int(r["AGE"]) <= hi:
+        if r["SEX"] != "0" or r["ORIGIN"] not in ("1", "2"):
             continue
-        pop = int(r["POPESTIMATE2024"])
-        if r["ORIGIN"] == "2":
-            race["Hispanic"] += pop
-        elif r["ORIGIN"] == "1":
-            race[{"1": "White", "2": "Black", "3": "American Indian / Alaska Native", "4": "Asian",
-                  "5": "Native Hawaiian / Pacific Islander", "6": "Two or more races"}[r["RACE"]]] += pop
-    return by_state, race
+        race = "Hispanic" if r["ORIGIN"] == "2" else CENSUS_RACE[r["RACE"]]
+        by_state_race_age[(r["NAME"], race, int(r["AGE"]))] += int(r["POPESTIMATE2024"])
+    return by_state_age, by_state_race_age
+
+
+def census(lo, hi):
+    """Population aged lo-hi (2024 estimate): by state, nationally by race/ethnicity, and by state and race."""
+    by_state_age, by_state_race_age = census_tables()
+    by_state, race, state_race = collections.Counter(), collections.Counter(), collections.Counter()
+    for (st, age), v in by_state_age.items():
+        if lo <= age <= hi:
+            by_state[st] += v
+    for (st, rc, age), v in by_state_race_age.items():
+        if lo <= age <= hi:
+            race[rc] += v
+            state_race[(st, rc)] += v
+    return by_state, race, state_race
 
 
 # --------------------------------------------------------------------------- main
@@ -135,7 +157,7 @@ def main():
     return out
 
 
-def compute(rows, lo, hi, pop_state, pop_race):
+def compute(rows, lo, hi, pop_state, pop_race, pop_state_race):
     """All insights for one age group; population comparisons use the same ages (lo-hi)."""
     I = {"ages": [lo, hi]}
     recent = [r for r in rows if r["date"] and r["date"].year >= RECENT_FROM]
@@ -177,6 +199,20 @@ def compute(rows, lo, hi, pop_state, pop_race):
                      r"Rio Grande|unaccompanied|refugee|ORR)\b", re.I)
     hisp = [r for r in recent if race_of(r["key"]) == "Hispanic"]
     I["hispanic_migration_related"] = [sum(bool(mig.search(r["text"])) for r in hisp), len(hisp)]
+    # Cases come disproportionately from some states; compare each race with the population of the states
+    # the cases come from (weighted by each state's share of known-race cases), not only with the nation.
+    st_cases = collections.Counter()
+    for r in recent:
+        if race_of(r["key"]):
+            st = r["p"]["last_contact_state"].strip()
+            st = STATE_ABBR.get(st.upper(), st) if len(st) <= 2 else st
+            if pop_state.get(st):
+                st_cases[st] += 1
+    n_st = sum(st_cases.values())
+    expected = {k: sum(w / n_st * pop_state_race[(st, k)] / pop_state[st] for st, w in st_cases.items())
+                for k in RACE_ORDER}
+    I["race_state_adjusted"] = [[k, rc[k] / known, expected[k], (rc[k] / known) / expected[k] if expected[k] else None]
+                                for k in RACE_ORDER]
     I["pop_group"] = pop_total
 
     # 3. Per-capita by state (recent) ----------------------------------------
@@ -198,17 +234,24 @@ def compute(rows, lo, hi, pop_state, pop_race):
 
     # 4. Seasonality. Exact dates only (Jan 1 is often a placeholder), and cases from the last 12 months
     #    are left out: open recent cases pile up in the current month and would fake a peak.
+    # Months differ in length (and January 1 is excluded), so shares are adjusted to cases per day before
+    # comparing months; raw shares are kept as raw_shares.
+    days = [30, 28.25, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+
     def months(sub):
         m = collections.Counter(r["date"].month for r in sub if r["date"] and (r["date"].month, r["date"].day) != (1, 1)
                                 and (COLLECTED - r["date"]).days > 365)
         tot = sum(m.values())
-        return [m[i] / tot if tot else 0 for i in range(1, 13)], tot
+        raw = [m[i] / tot if tot else 0 for i in range(1, 13)]
+        per_day = [m[i] / days[i - 1] for i in range(1, 13)]
+        s = sum(per_day)
+        return [v / s if s else 0 for v in per_day], raw, tot
     I["jan1_share"] = sum(1 for r in rows if r["date"] and (r["date"].month, r["date"].day) == (1, 1)) / len(rows)
     I["season"] = {}
     for label, sub in (("All cases", rows),
                        ("Lost, drowned or accident outdoors", [r for r in rows if r["type"].startswith("Outdoors")])):
-        shares, tot = months(sub)
-        I["season"][label] = {"shares": shares, "n": tot}
+        shares, raw, tot = months(sub)
+        I["season"][label] = {"shares": shares, "raw_shares": raw, "n": tot}
 
     # 5. How long cases stay open ---------------------------------------------
     yrs = [(COLLECTED - r["date"]).days / 365.25 for r in rows if r["date"]]
@@ -255,7 +298,7 @@ def compute(rows, lo, hi, pop_state, pop_race):
     sib = 0
     for r in rows:
         if r["key"].startswith("ncmec"):
-            b = json.load(open(ROOT / "data/raw/ncmec" / f"{r['key'].split(':', 1)[1]}.json", encoding="utf-8"))["childBean"]
+            b = raw_record("ncmec", r["key"].split(":", 1)[1])
             sib += bool(b.get("otherChildList"))
     I["ncmec_with_companions"] = [sib, sum(r["key"].startswith("ncmec") for r in rows)]
     return I

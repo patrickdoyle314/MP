@@ -76,6 +76,30 @@ def summarize(P, C, E, group):
     return G
 
 
+def early_resolution(P):
+    """Children on NCMEC at the previous run: share found by the latest run, by how long the case had been open."""
+    runs = [r["date"] for r in STATE["runs"]]
+    if len(runs) < 2:
+        return None
+    prev, last = runs[-2], runs[-1]
+    bands = (("0-30 days", 30), ("31-90 days", 90), ("91-365 days", 365), ("1-5 years", 1826), ("over 5 years", 10 ** 6))
+    at_risk, found = collections.Counter(), collections.Counter()
+    for cid, c in STATE["ncmec"].items():
+        w = c.get("delisted")
+        if c["first_listed"] > prev or (w and w["window_end"] <= prev):
+            continue  # not yet listed at the previous run, or already found before it
+        p = P.get(f"ncmec:{cid}")
+        if not p or p["age_group"] != "child" or not p["last_contact_date"]:
+            continue
+        days = (dt.date.fromisoformat(prev) - dt.date.fromisoformat(p["last_contact_date"][:10])).days
+        band = next(b for b, hi in bands if days <= hi)
+        at_risk[band] += 1
+        found[band] += bool(w and w["window_end"] == last)
+    gap = (dt.date.fromisoformat(last) - dt.date.fromisoformat(prev)).days
+    return {"from": prev, "to": last, "days": gap,
+            "bands": [[b, found[b], at_risk[b]] for b, _ in bands]}
+
+
 def main():
     P = {p["person_key"]: p for p in load("output/persons.csv")}
     open_keys = {k for k, p in P.items() if p["status"] != "delisted"}
@@ -97,6 +121,7 @@ def main():
         "adult": summarize(P, C, E, "adult"),
     }
     F["ncmec_cases"] = len(ncmec_files)
+    F["early_resolution"] = early_resolution(P)
     (ROOT / "report/facts.json").write_text(json.dumps(F, indent=1), "utf-8")
     print(f"wrote report/facts.json: {F['n_open']} open ({F['child']['n']} children, {F['adult']['n']} adults, "
           f"{F['unknown_age']} unknown age); {F['delisted_so_far']} found so far")

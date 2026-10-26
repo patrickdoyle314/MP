@@ -51,8 +51,11 @@ def main():
         for a, f, m in Ig["age_sex"]:
             D["age_sex"].append({"group": g, "age": a, "female": f, "male": m})
         for r in RACES:
+            adj = {x[0]: x for x in Ig["race_state_adjusted"]}[r]
             D["race"].append({"group": g, "race": r, "case_share": round(race[r][2], 4),
-                              "pop_share": round(race[r][3], 4), "ratio": round(race[r][4], 2)})
+                              "pop_share": round(race[r][3], 4), "ratio": round(race[r][4], 2),
+                              "pop_share_case_states": round(adj[2], 4),
+                              "ratio_state_adjusted": round(adj[3], 2) if adj[3] else None})
         for k, (med, n) in Ig["years_open_by_type"].items():
             if med is not None and n >= 10:
                 D["years_open"].append({"group": g, "category": LABEL[k], "median_years": round(med, 1), "cases": n})

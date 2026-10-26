@@ -375,6 +375,7 @@ def examples(rows):
 
 tc, ta = dict(FC["type"]), dict(FA["type"])
 rc, ra = {r[0]: r for r in IC["race"]}, {r[0]: r for r in IA["race"]}
+rcs, ras = {r[0]: r for r in IC["race_state_adjusted"]}, {r[0]: r for r in IA["race_state_adjusted"]}
 fam_young = dict(FC["bands"]["0-11"]["type"]).get("Family abduction", 0)
 yo, yoa = IC["years_open_by_type"], IA["years_open_by_type"]
 slow = SF["fits"]["1"]
@@ -428,7 +429,9 @@ bullet([("b", "When the record says how a young child went missing, it is usuall
 bullet([("b", "Black, Hispanic and American Indian / Alaska Native children are over-represented. "),
         f"Compared with their share of Americans aged 0 to 17, they appear in open child cases since "
         f"{INS['recent_from']} at {x(rc['Black'][4])}, {x(rc['Hispanic'][4])} and "
-        f"{x(rc['American Indian / Alaska Native'][4])} their population share.", ("cite", [7, 8])])
+        f"{x(rc['American Indian / Alaska Native'][4])} their population share ({x(rcs['Black'][3])}, "
+        f"{x(rcs['Hispanic'][3])} and {x(rcs['American Indian / Alaska Native'][3])} against the population of the "
+        "states the cases come from).", ("cite", [7, 8])])
 bullet([("b", "The cases that stay open are the serious ones. "),
         f"Open child runaway cases are typically {yo['Runaway / left voluntarily'][0]:.0f} years old; open "
         f"non-family abductions and suspected homicides of children, {yo['Non-family abduction'][0]:.0f} and "
@@ -546,6 +549,12 @@ para([f"The pattern holds in each database (Black children: {pf(rbs['namus']['Bl
       f"{fmt(hisp_n)} Hispanic child cases ({pct(mig, hisp_n)}) mention a border crossing, migrants or "
       "unaccompanied minors. This shows who is in the open-case listings, not who is most likely to go missing; "
       "differences in how quickly cases are resolved, reported and publicized could all play a part.", ("cite", [7])])
+para([("b", "Checked against where cases come from. "),
+      "Cases are concentrated in a few states whose populations differ from the nation’s, so each group was also "
+      "compared with the population of the states its cases come from (each state weighted by its share of cases). "
+      f"Black children stay at {x(rcs['Black'][3])}, Hispanic children fall to {x(rcs['Hispanic'][3])} and American "
+      f"Indian / Alaska Native children to {x(rcs['American Indian / Alaska Native'][3])}: geography explains a little "
+      "of the gap, not most of it.", ("cite", [7, 8])])
 figure("race_child", f"Share of open child cases since {INS['recent_from']} (known race/ethnicity) and of U.S. "
        "population aged 0 to 17 (2024). Hispanic is any race; other groups are non-Hispanic.", [1, 2, 7, 8])
 
@@ -559,9 +568,11 @@ para([f"Among open child cases, the typical runaway went missing {yo['Runaway / 
 figure("years_open_child", "Median years since last seen, open child cases, by how they went missing.", [7])
 
 h2("5. Disappearances rise in late spring and summer")
-para([f"{MONTHS[pk]} has the most child disappearances ({p1(s_all[pk])}) and {MONTHS[lo]} the fewest "
-      f"({p1(s_all[lo])}). Cases from the last 12 months and dates recorded as January 1 are left out.", ("cite", [7])])
-figure("season_child", "Share of child cases by month of disappearance; the dashed line is an even spread (8.3%).", [7])
+para([f"Adjusted for month length, {MONTHS[pk]} has the most child disappearances per day and {MONTHS[lo]} the "
+      f"fewest: about {round(100 * (s_all[pk] / s_all[lo] - 1))}% more per day. Cases from the last 12 months and "
+      "dates recorded as January 1 are left out.", ("cite", [7])])
+figure("season_child", "Share of child cases by month of disappearance, adjusted for month length (cases per day); "
+       "the dashed line is an even spread (8.3%).", [7])
 
 h2("6. When a parent takes a child, it is often across a border")
 para([f"{fmt(IC['fam_abroad'])} of {fmt(IC['fam_n'])} family abductions ({pct(IC['fam_abroad'], IC['fam_n'])}) "
@@ -648,6 +659,15 @@ bullet([("b", "After the last sighting: "), f"{fmt(T['between_people'])} childre
 bullet([("b", "Found: "), f"Neither database publishes outcomes; a case drops off when the child is located. Weekly "
         f"collection since {F['first_run']} has recorded {fmt(F['delisted_children'])} children found so far.",
         ("cite", [1, 2, 7])])
+ER = F.get("early_resolution")
+if ER:
+    erb = {b: (f, n) for b, f, n in ER["bands"]}
+    bullet([("b", "Found quickly, or not for years: "),
+            f"Of NCMEC child cases listed on {ER['from']}, {pct(*erb['0-30 days'])} of those open 30 days or less were "
+            f"found within {ER['days']} days, against {pct(*erb['31-90 days'])} of those open 31–90 days, "
+            f"{pct(*erb['91-365 days'])} at 3–12 months and {pct(*erb['over 5 years'])} of those open over 5 years. "
+            "It is one short window, but it shows the same fast and slow groups as the national model.",
+            ("cite", [2, 7])])
 
 # ===================================================================== PART 2: YOUNG ADULTS
 h1("Part 2: Young adults (18–25)")
@@ -675,8 +695,10 @@ figure("female_share_adult", "Share of young-adult cases who are women, by how t
 para([("b", "American Indian and Alaska Native young adults are the most over-represented group in this report. "),
       f"They appear in open cases since {INS['recent_from']} at {x(ra['American Indian / Alaska Native'][4])} "
       f"their share of Americans aged 18 to 25 (children: {x(rc['American Indian / Alaska Native'][4])}). Black "
-      f"({x(ra['Black'][4])}) and Hispanic ({x(ra['Hispanic'][4])}) young adults are also over-represented.",
-      ("cite", [7, 8])])
+      f"({x(ra['Black'][4])}) and Hispanic ({x(ra['Hispanic'][4])}) young adults are also over-represented. Much of "
+      "the American Indian / Alaska Native gap is geography: against the population of the states the cases come "
+      f"from, it is {x(ras['American Indian / Alaska Native'][3])}, and Hispanic young adults are "
+      f"{x(ras['Hispanic'][3])}; Black young adults stay at {x(ras['Black'][3])}.", ("cite", [7, 8])])
 figure("race_adult", f"Share of open young-adult cases since {INS['recent_from']} and of U.S. population aged 18 to 25 "
        "(2024). Hispanic is any race; other groups are non-Hispanic.", [1, 2, 7, 8])
 para([("b", "Open cases are older. "), "Open young-adult runaway cases are typically "
@@ -684,9 +706,10 @@ para([("b", "Open cases are older. "), "Open young-adult runaway cases are typic
       f"cases with no stated cause, {yoa['Not stated'][0]:.0f} years (children: {yo['Not stated'][0]:.0f}).",
       ("cite", [7])])
 figure("years_open_adult", "Median years since last seen, open young-adult cases, by how they went missing.", [7])
-para([("b", "Seasonality. "), f"{MONTHS[pka]} has the most young-adult disappearances ({p1(sa[pka])}) and "
-      f"{MONTHS[loa]} the fewest ({p1(sa[loa])}).", ("cite", [7])])
-figure("season_adult", "Share of young-adult cases by month of disappearance.", [7])
+para([("b", "Seasonality. "), f"Adjusted for month length, {MONTHS[pka]} has the most young-adult disappearances "
+      f"per day and {MONTHS[loa]} the fewest: about {round(100 * (sa[pka] / sa[loa] - 1))}% more per day.",
+      ("cite", [7])])
+figure("season_adult", "Share of young-adult cases by month of disappearance, adjusted for month length.", [7])
 para([("b", "State rates. "), f"The national rate is {IA['national_rate']:.1f} open young-adult cases per 100,000 "
       "people aged 18 to 25 since 2016; as for children, state differences mostly reflect reporting.", ("cite", [7, 8])])
 state_table(IA, "18-25")
